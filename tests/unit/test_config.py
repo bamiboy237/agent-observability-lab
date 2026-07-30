@@ -20,12 +20,20 @@ def test_missing_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize("environment", ["local", "test", "production"])
 def test_valid_environment_loads(environment: str) -> None:
     settings = Settings(
-        database_url="postgresql://user:password@localhost:5432/app",
+        database_url=(
+            "postgresql://user:password@localhost:5432/app"
+            "?sslmode=require&channel_binding=require"
+        ),
         environment=environment,
         _env_file=None,
     )
 
     assert settings.environment == environment
+    assert settings.database_url.scheme == "postgresql+asyncpg"
+    normalized_url = str(settings.database_url)
+    assert "ssl=require" in normalized_url
+    assert "sslmode" not in normalized_url
+    assert "channel_binding" not in normalized_url
 
 
 def test_invalid_environment_fails() -> None:
