@@ -1,0 +1,4 @@
+# Database is Neon — no local Postgres needed.
+# Add services here if you need local infrastructure later
+# (e.g. a Redis cache, a mock external API, etc.)
+services: {}
