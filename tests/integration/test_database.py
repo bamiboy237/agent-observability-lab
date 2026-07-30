@@ -36,9 +36,9 @@ async def current_revision(database_url: str) -> str | None:
 async def test_session_executes_select_one() -> None:
     database_url_or_skip()
 
-    from app.db import SessionLocal
+    from app.db import get_session_factory
 
-    async with SessionLocal() as session:
+    async with get_session_factory()() as session:
         result = await session.execute(text("SELECT 1"))
 
     assert result.scalar_one() == 1

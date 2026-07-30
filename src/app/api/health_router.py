@@ -1,5 +1,6 @@
 """Health router to check the health of the application."""
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,15 @@ async def readiness_check(session: AsyncSession) -> bool:
 
 
 @router.get("/readyz", status_code=status.HTTP_200_OK)
-async def readiness(session: AsyncSession = Depends(get_session)) -> dict[str, str]:
+async def readiness(
+    session: AsyncSession = Depends(get_session),
+) -> JSONResponse:
     if not await readiness_check(session):
-        return {"status": "not ready"}
-    return {"status": "ok"}
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "unavailable"},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"status": "ok"},
+    )
