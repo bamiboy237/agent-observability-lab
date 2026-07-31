@@ -29,3 +29,14 @@ class Forbidden(SupportError):
             message="You are not allowed to view this order",
             status_code=HTTPStatus.FORBIDDEN,
         )
+
+
+class InvalidTransition(SupportError):
+    """Raised when an order cannot move to the requested status."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            code="invalid_transition",
+            message="The order cannot be refunded from its current status",
+            status_code=HTTPStatus.CONFLICT,
+        )

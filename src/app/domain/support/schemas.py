@@ -59,6 +59,17 @@ class TicketRead(TicketCreate):
     id: UUID
 
 
+class CreateTicketCommand(BaseModel):
+    actor_id: UUID
+    order_id: UUID | None = None
+    subject: str = Field(min_length=1, max_length=300)
+
+
+class RefundCommand(BaseModel):
+    actor_id: UUID
+    order_id: UUID
+
+
 class PolicyDocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
