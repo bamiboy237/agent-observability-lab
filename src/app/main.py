@@ -6,6 +6,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
 from app.api.health_router import router as health_router
+from app.api.support_router import router as support_router
 from app.config import Settings, get_settings
 from app.errors import application_exception_handler
 from app.logging import configure_logging, request_logger
@@ -46,4 +47,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_exception_handler(Exception, application_exception_handler)
     app.include_router(health_router)
+    app.include_router(support_router)
     return app
