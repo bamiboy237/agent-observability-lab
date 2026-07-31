@@ -3,7 +3,7 @@
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import CheckConstraint, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -73,3 +73,17 @@ class Ticket(Base):
         server_default="open",
         index=True,
     )
+
+
+class PolicyDocument(Base):
+    __tablename__ = "policy_documents"
+    __table_args__ = (
+        UniqueConstraint("slug", "version", name="uq_policy_documents_slug_version"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    slug: Mapped[str] = mapped_column(String(100))
+    version: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64))

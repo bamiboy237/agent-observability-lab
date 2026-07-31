@@ -57,3 +57,14 @@ class TicketRead(TicketCreate):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+
+
+class PolicyDocumentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    slug: str
+    version: str
+    title: str
+    content: str
+    content_hash: str
