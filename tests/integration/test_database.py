@@ -4,6 +4,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -36,9 +37,9 @@ async def current_revision(database_url: str) -> str | None:
 async def test_session_executes_select_one() -> None:
     database_url_or_skip()
 
-    from app.db import SessionLocal
+    from app.db import get_session_factory
 
-    async with SessionLocal() as session:
+    async with get_session_factory()() as session:
         result = await session.execute(text("SELECT 1"))
 
     assert result.scalar_one() == 1
@@ -48,12 +49,13 @@ async def test_session_executes_select_one() -> None:
 def test_migrations_upgrade_downgrade_and_reapply() -> None:
     database_url = database_url_or_skip()
     alembic_config = Config("alembic.ini")
+    head_revision = ScriptDirectory.from_config(alembic_config).get_current_head()
 
     command.upgrade(alembic_config, "head")
-    assert asyncio.run(current_revision(database_url)) == "0001_baseline"
+    assert asyncio.run(current_revision(database_url)) == head_revision
 
     command.downgrade(alembic_config, "base")
     assert asyncio.run(current_revision(database_url)) is None
 
     command.upgrade(alembic_config, "head")
-    assert asyncio.run(current_revision(database_url)) == "0001_baseline"
+    assert asyncio.run(current_revision(database_url)) == head_revision
