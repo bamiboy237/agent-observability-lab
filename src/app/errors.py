@@ -1,11 +1,11 @@
-"""Safe application error responses."""
+"""This module provides safe application error responses."""
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 
 
 class DomainError(Exception):
-    """An expected application failure safe to return to a client."""
+    """This class represents an expected application failure that the API returns safely."""
 
     def __init__(self, *, code: str, message: str, status_code: int) -> None:
         super().__init__(message)
@@ -18,7 +18,7 @@ async def application_exception_handler(
     request: Request,
     error: Exception,
 ) -> JSONResponse:
-    """Map expected and unexpected failures to stable, safe responses."""
+    """This function maps expected and unexpected failures to stable, safe responses."""
     if isinstance(error, DomainError):
         code = error.code
         message = error.message

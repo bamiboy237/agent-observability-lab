@@ -1,1 +1,1 @@
-"""Deterministic customer-support domain."""
+"""This package contains the deterministic domain for customer support."""

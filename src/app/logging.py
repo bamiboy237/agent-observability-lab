@@ -1,4 +1,4 @@
-"""Structured application logging."""
+"""This module provides structured application logging."""
 
 import json
 import logging
@@ -9,7 +9,7 @@ REQUEST_LOG_FIELDS = ("request_id", "method", "path", "status_code", "duration_m
 
 
 class JsonFormatter(logging.Formatter):
-    """Format application log records as one JSON object per line."""
+    """This class formats each application log record as one JSON object per line."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
@@ -28,7 +28,7 @@ request_logger = logging.getLogger(REQUEST_LOGGER_NAME)
 
 
 def configure_logging() -> None:
-    """Configure the request logger once per process."""
+    """This function configures the request logger once for the process."""
     if not request_logger.handlers:
         handler = logging.StreamHandler()
         handler.setFormatter(JsonFormatter())

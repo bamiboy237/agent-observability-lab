@@ -1,4 +1,4 @@
-"""Alembic environment for async PostgreSQL migrations."""
+"""This module configures Alembic for asynchronous PostgreSQL migrations."""
 
 import asyncio
 from logging.config import fileConfig
@@ -23,7 +23,7 @@ def database_configuration() -> dict[str, str]:
 
 
 def run_migrations_offline() -> None:
-    """Run migrations without creating a database connection."""
+    """This function runs migrations without a database connection."""
     context.configure(
         url=database_configuration()["sqlalchemy.url"],
         target_metadata=target_metadata,
@@ -43,7 +43,10 @@ def apply_migrations(connection: object) -> None:
 
 
 async def run_async_migrations() -> None:
-    """Connect with the async driver and apply pending migrations."""
+    """This function connects through the asynchronous driver.
+
+    This function applies migrations that are pending.
+    """
     engine = async_engine_from_config(
         database_configuration(),
         prefix="sqlalchemy.",

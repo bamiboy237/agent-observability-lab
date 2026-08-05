@@ -1,4 +1,4 @@
-"""HTTP routes for accepted support operations."""
+"""This module defines HTTP routes for customer support operations."""
 
 from typing import Annotated
 from uuid import UUID

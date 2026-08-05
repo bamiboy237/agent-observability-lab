@@ -56,9 +56,7 @@ async def test_disallowed_order_status_remains_unchanged(status: OrderStatus) ->
     service = SupportService(repository)
 
     with pytest.raises(InvalidTransition) as error:
-        await service.request_refund(
-            RefundCommand(actor_id=order.customer_id, order_id=order.id)
-        )
+        await service.request_refund(RefundCommand(actor_id=order.customer_id, order_id=order.id))
 
     assert error.value.code == "invalid_transition"
     assert error.value.status_code == 409
@@ -69,15 +67,13 @@ async def test_repository_failure_leaves_order_unchanged() -> None:
     order = make_order()
 
     class FailingRepository(InMemorySupportRepository):
-        async def save_order(self, updated_order: OrderRead) -> OrderRead | None:
+        async def save_order(self, order: OrderRead) -> OrderRead | None:
             raise RuntimeError("database write failed")
 
     repository = FailingRepository((order,))
     service = SupportService(repository)
 
     with pytest.raises(RuntimeError, match="database write failed"):
-        await service.request_refund(
-            RefundCommand(actor_id=order.customer_id, order_id=order.id)
-        )
+        await service.request_refund(RefundCommand(actor_id=order.customer_id, order_id=order.id))
 
     assert await repository.get_order(order.id) == order

@@ -1,15 +1,15 @@
-"""Application configuration loaded from environment variables."""
+"""This module loads application configuration from environment variables."""
 
 from functools import lru_cache
 from typing import Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from pydantic import PostgresDsn, SecretStr, field_serializer, field_validator
+from pydantic import PostgresDsn, SecretStr, field_serializer, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Validated settings shared by the application."""
+    """This class stores validated settings for the application."""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 
@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     langsmith_tracing: bool = False
     langsmith_api_key: SecretStr | None = None
     langsmith_project: str = "agent-reliability-lab"
+    langsmith_otlp_endpoint: str | None = None
+    otel_tracing_enabled: bool = False
+    model_provider: Literal["openai", "anthropic"] | None = None
+    model_name: str | None = None
+    model_base_url: str | None = None
+    model_api_key: SecretStr | None = None
 
     @field_validator("database_url", "database_url_unpooled", mode="before")
     @classmethod
@@ -40,14 +46,37 @@ class Settings(BaseSettings):
 
     @field_serializer("database_url", "database_url_unpooled")
     def serialize_database_url(self, database_url: PostgresDsn | None) -> str | None:
-        """Keep database credentials out of serialized settings and logs."""
+        """This method removes database credentials from serialized settings and logs."""
         if database_url is None:
             return None
         return f"{database_url.scheme}://[REDACTED]"
 
+    @model_validator(mode="after")
+    def validate_model_settings(self) -> "Settings":
+        """This method accepts a complete model configuration or no model configuration."""
+        if (self.model_provider is None) != (self.model_name is None):
+            raise ValueError("MODEL_PROVIDER and MODEL_NAME must be set together")
+        if self.model_provider is not None:
+            if self.model_api_key is None and not self._has_local_model_endpoint():
+                raise ValueError(
+                    "MODEL_API_KEY is required unless MODEL_BASE_URL points to a local endpoint"
+                )
+        return self
+
+    def _has_local_model_endpoint(self) -> bool:
+        if self.model_base_url is None:
+            return False
+        host = urlsplit(self.model_base_url).hostname or ""
+        return host in {"localhost", "127.0.0.1", "::1"}
+
+    @property
+    def model_configured(self) -> bool:
+        """This property reports whether these settings build a hosted model."""
+        return self.model_provider is not None and self.model_name is not None
+
     @property
     def migration_database_url(self) -> PostgresDsn:
-        """Return the direct database URL required by schema migrations."""
+        """This property returns the direct database URL that schema migrations require."""
         return self.database_url_unpooled or self.database_url
 
     def __str__(self) -> str:

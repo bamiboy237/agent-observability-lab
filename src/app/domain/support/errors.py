@@ -1,4 +1,4 @@
-"""Typed support-domain errors mapped by the Phase 0 error handler."""
+"""This module defines support errors with explicit types for the Phase 0 error handler."""
 
 from http import HTTPStatus
 
@@ -6,11 +6,11 @@ from app.errors import DomainError
 
 
 class SupportError(DomainError):
-    """Base class for expected support-domain failures."""
+    """This class represents an expected failure from the support domain."""
 
 
 class OrderNotFound(SupportError):
-    """Raised when the requested order does not exist."""
+    """This class represents a request for an order that does not exist."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -21,7 +21,7 @@ class OrderNotFound(SupportError):
 
 
 class Forbidden(SupportError):
-    """Raised when an actor may not view an existing order."""
+    """This class represents an attempt to view an order without permission."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -32,11 +32,22 @@ class Forbidden(SupportError):
 
 
 class InvalidTransition(SupportError):
-    """Raised when an order cannot move to the requested status."""
+    """This class represents an order status change that the domain does not allow."""
 
     def __init__(self) -> None:
         super().__init__(
             code="invalid_transition",
             message="The order cannot be refunded from its current status",
             status_code=HTTPStatus.CONFLICT,
+        )
+
+
+class PolicyNotFound(SupportError):
+    """This class represents a request for a policy document that does not exist."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            code="policy_not_found",
+            message="The policy document was not found",
+            status_code=HTTPStatus.NOT_FOUND,
         )

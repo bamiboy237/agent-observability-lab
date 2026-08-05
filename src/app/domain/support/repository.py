@@ -1,12 +1,13 @@
-"""Persistence boundary for the support domain."""
+"""This module defines the persistence boundary for the support domain."""
 
 from typing import Protocol
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.support.models import Order, Ticket
-from app.domain.support.schemas import OrderRead, TicketCreate, TicketRead
+from app.domain.support.models import Order, PolicyDocument, Ticket
+from app.domain.support.schemas import OrderRead, PolicyDocumentRead, TicketCreate, TicketRead
 
 
 class SupportRepository(Protocol):
@@ -17,6 +18,12 @@ class SupportRepository(Protocol):
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead: ...
 
     async def get_ticket(self, ticket_id: UUID) -> TicketRead | None: ...
+
+    async def get_policy(
+        self,
+        slug: str,
+        version: str | None = None,
+    ) -> PolicyDocumentRead | None: ...
 
 
 class SqlAlchemySupportRepository:
@@ -47,3 +54,16 @@ class SqlAlchemySupportRepository:
     async def get_ticket(self, ticket_id: UUID) -> TicketRead | None:
         ticket = await self._session.get(Ticket, ticket_id)
         return TicketRead.model_validate(ticket) if ticket is not None else None
+
+    async def get_policy(
+        self,
+        slug: str,
+        version: str | None = None,
+    ) -> PolicyDocumentRead | None:
+        statement = select(PolicyDocument).where(PolicyDocument.slug == slug)
+        if version is not None:
+            statement = statement.where(PolicyDocument.version == version)
+        else:
+            statement = statement.order_by(PolicyDocument.version.desc()).limit(1)
+        policy = await self._session.scalar(statement)
+        return PolicyDocumentRead.model_validate(policy) if policy is not None else None

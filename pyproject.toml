@@ -6,6 +6,9 @@ dependencies = [
     "alembic>=1.18.5",
     "asyncpg>=0.31.0",
     "fastapi[standard]>=0.139.2",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "pydantic-ai-slim[anthropic,openai]>=2.24.0",
     "pydantic-settings>=2.14.2",
     "sqlalchemy[asyncio]>=2.0.51",
 ]
@@ -45,4 +48,5 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
     "integration: requires a configured PostgreSQL database",
+    "live: requires a hosted model and/or LangSmith credentials",
 ]

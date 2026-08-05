@@ -1,4 +1,4 @@
-"""Deterministic support-domain seed data."""
+"""This module defines deterministic seed data for the support domain."""
 
 from hashlib import sha256
 from typing import TypedDict
@@ -15,7 +15,7 @@ SEED_NAMESPACE = UUID("30f66e1b-9d4e-4a6c-a1c7-28d473ef4076")
 
 
 def seed_id(name: str) -> UUID:
-    """Return the stable UUID for one named seed record."""
+    """This function returns the stable UUID for one named seed record."""
     return uuid5(SEED_NAMESPACE, name)
 
 
@@ -110,7 +110,7 @@ class SeedSummary(BaseModel):
 
 
 async def seed_support_data(session: AsyncSession) -> SeedSummary:
-    """Insert missing seed records without changing records that already exist."""
+    """This function inserts missing seed records and preserves existing records."""
     await session.execute(insert(Customer).values(CUSTOMERS).on_conflict_do_nothing())
     await session.execute(insert(Order).values(ORDERS).on_conflict_do_nothing())
     await session.execute(

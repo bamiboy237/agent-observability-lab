@@ -1,1 +1,1 @@
-"""Reusable test doubles."""
+"""This package contains test doubles for reuse."""

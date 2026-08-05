@@ -1,4 +1,4 @@
-"""Persisted customer-support models."""
+"""This module defines models that store customer support data."""
 
 from decimal import Decimal
 from uuid import UUID, uuid4

@@ -1,4 +1,4 @@
-"""Validated commands and public support-domain responses."""
+"""This module defines validated commands and public responses for customer support."""
 
 from decimal import Decimal
 from enum import StrEnum

@@ -1,4 +1,4 @@
-"""add support tables
+"""This migration adds tables for support data.
 
 Revision ID: 7ecfe203df28
 Revises: 0001_baseline

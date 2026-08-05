@@ -1,4 +1,4 @@
-"""add policy documents
+"""This migration adds documents for support policies.
 
 Revision ID: 4f51cd9c287d
 Revises: 7ecfe203df28

@@ -1,4 +1,4 @@
-"""Establish the baseline migration revision.
+"""This migration establishes the baseline revision.
 
 Revision ID: 0001_baseline
 Revises:
@@ -14,8 +14,8 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Create the initial revision without product tables."""
+    """This function creates the initial revision without tables for product data."""
 
 
 def downgrade() -> None:
-    """Return to the pre-product schema."""
+    """This function returns the database to a schema that excludes product tables."""

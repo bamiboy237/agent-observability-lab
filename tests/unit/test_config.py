@@ -21,10 +21,9 @@ def test_missing_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_valid_environment_loads(environment: str) -> None:
     settings = Settings(
         database_url=(
-            "postgresql://user:password@localhost:5432/app"
-            "?sslmode=require&channel_binding=require"
+            "postgresql://user:password@localhost:5432/app?sslmode=require&channel_binding=require"
         ),
-        environment=environment,
+        environment=environment,  # type: ignore[arg-type]
         _env_file=None,
     )
 
@@ -40,7 +39,7 @@ def test_invalid_environment_fails() -> None:
     with pytest.raises(ValidationError):
         Settings(
             database_url="postgresql://user:password@localhost:5432/app",
-            environment="staging",
+            environment="staging",  # type: ignore[arg-type]
             _env_file=None,
         )
 
@@ -61,6 +60,3 @@ def test_tracing_defaults_off_and_api_key_is_masked() -> None:
     assert database_password not in repr(settings)
     assert database_password not in str(settings)
     assert database_password not in serialized
-
-
-    

@@ -1,4 +1,4 @@
-"""Seed the configured support database."""
+"""This script adds seed data for support operations to the configured database."""
 
 import asyncio
 

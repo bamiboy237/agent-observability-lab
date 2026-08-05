@@ -1,12 +1,17 @@
 from uuid import UUID, uuid4
 
-from app.domain.support.schemas import OrderRead, TicketCreate, TicketRead
+from app.domain.support.schemas import OrderRead, PolicyDocumentRead, TicketCreate, TicketRead
 
 
 class InMemorySupportRepository:
-    def __init__(self, orders: tuple[OrderRead, ...] = ()) -> None:
+    def __init__(
+        self,
+        orders: tuple[OrderRead, ...] = (),
+        policies: tuple[PolicyDocumentRead, ...] = (),
+    ) -> None:
         self.orders = {order.id: order for order in orders}
         self.tickets: dict[UUID, TicketRead] = {}
+        self.policies = {(policy.slug, policy.version): policy for policy in policies}
 
     async def get_order(self, order_id: UUID) -> OrderRead | None:
         return self.orders.get(order_id)
@@ -24,3 +29,17 @@ class InMemorySupportRepository:
 
     async def get_ticket(self, ticket_id: UUID) -> TicketRead | None:
         return self.tickets.get(ticket_id)
+
+    async def get_policy(
+        self,
+        slug: str,
+        version: str | None = None,
+    ) -> PolicyDocumentRead | None:
+        matching = [
+            policy
+            for (policy_slug, policy_version), policy in self.policies.items()
+            if policy_slug == slug and (version is None or policy_version == version)
+        ]
+        if not matching:
+            return None
+        return max(matching, key=lambda policy: policy.version)
