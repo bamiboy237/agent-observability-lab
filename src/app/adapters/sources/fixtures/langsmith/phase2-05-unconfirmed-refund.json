@@ -1,0 +1,227 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-05-unconfirmed-refund",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000051",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000051",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:06:00.000Z",
+    "end_time": "2026-08-04T10:06:02.400Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "refund",
+        "support.confidence": 0.97,
+        "support.outcome": "blocked",
+        "support.reason.code": "refund_blocked_unconfirmed",
+        "support.message.length": 94,
+        "support.latency.ms": 2400.0,
+        "support.tokens.input": 780,
+        "support.tokens.output": 120,
+        "support.tokens.total": 900,
+        "support.cost.usd": 0.0031,
+        "support.retry.count": 0
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000052",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000051",
+        "parent_run_id": "10000000-0000-4000-8000-000000000051",
+        "start_time": "2026-08-04T10:06:00.010Z",
+        "end_time": "2026-08-04T10:06:00.640Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 630.0,
+            "model.tokens.input": 320,
+            "model.tokens.output": 14,
+            "model.tokens.total": 334,
+            "model.run.id": "run-05-01",
+            "support.intent": "refund",
+            "support.confidence": 0.97
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000053",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000051",
+        "parent_run_id": "10000000-0000-4000-8000-000000000051",
+        "start_time": "2026-08-04T10:06:00.670Z",
+        "end_time": "2026-08-04T10:06:02.350Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 1680.0,
+            "model.tokens.input": 460,
+            "model.tokens.output": 106,
+            "model.tokens.total": 566,
+            "model.run.id": "run-05-02"
+          }
+        },
+        "child_runs": [
+          {
+            "id": "10000000-0000-4000-8000-000000000054",
+            "name": "support_agent.tool.get_order_status",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000051",
+            "parent_run_id": "10000000-0000-4000-8000-000000000053",
+            "start_time": "2026-08-04T10:06:00.700Z",
+            "end_time": "2026-08-04T10:06:00.860Z",
+            "inputs": {},
+            "outputs": {},
+            "error": null,
+            "extra": {
+              "metadata": {
+                "tool.name": "get_order_status",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 160.0
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000055",
+                "name": "support_agent.database.read",
+                "run_type": "tool",
+                "trace_id": "20000000-0000-4000-8000-000000000051",
+                "parent_run_id": "10000000-0000-4000-8000-000000000054",
+                "start_time": "2026-08-04T10:06:00.710Z",
+                "end_time": "2026-08-04T10:06:00.732Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "db.operation": "get_order",
+                    "db.latency.ms": 22.0
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000056",
+            "name": "support_agent.tool.propose_refund",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000051",
+            "parent_run_id": "10000000-0000-4000-8000-000000000053",
+            "start_time": "2026-08-04T10:06:00.900Z",
+            "end_time": "2026-08-04T10:06:01.150Z",
+            "inputs": {},
+            "outputs": {},
+            "error": null,
+            "extra": {
+              "metadata": {
+                "tool.name": "propose_refund",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 250.0
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000057",
+                "name": "support_agent.policy.check",
+                "run_type": "chain",
+                "trace_id": "20000000-0000-4000-8000-000000000051",
+                "parent_run_id": "10000000-0000-4000-8000-000000000056",
+                "start_time": "2026-08-04T10:06:00.910Z",
+                "end_time": "2026-08-04T10:06:00.930Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "policy.version": "2026-07-30",
+                    "policy.decision": "allowed"
+                  }
+                },
+                "child_runs": []
+              },
+              {
+                "id": "10000000-0000-4000-8000-000000000058",
+                "name": "support_agent.confirmation",
+                "run_type": "chain",
+                "trace_id": "20000000-0000-4000-8000-000000000051",
+                "parent_run_id": "10000000-0000-4000-8000-000000000056",
+                "start_time": "2026-08-04T10:06:00.940Z",
+                "end_time": "2026-08-04T10:06:00.960Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "confirmation.required": true,
+                    "confirmation.verified": false
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000059",
+            "name": "support_agent.tool.confirm_refund",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000051",
+            "parent_run_id": "10000000-0000-4000-8000-000000000053",
+            "start_time": "2026-08-04T10:06:01.200Z",
+            "end_time": "2026-08-04T10:06:01.380Z",
+            "inputs": {},
+            "outputs": {},
+            "error": "refund_not_confirmed",
+            "extra": {
+              "metadata": {
+                "tool.name": "confirm_refund",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 180.0,
+                "tool.error.code": "refund_blocked_unconfirmed"
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000060",
+                "name": "support_agent.confirmation",
+                "run_type": "chain",
+                "trace_id": "20000000-0000-4000-8000-000000000051",
+                "parent_run_id": "10000000-0000-4000-8000-000000000059",
+                "start_time": "2026-08-04T10:06:01.210Z",
+                "end_time": "2026-08-04T10:06:01.230Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "confirmation.required": true,
+                    "confirmation.verified": false
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

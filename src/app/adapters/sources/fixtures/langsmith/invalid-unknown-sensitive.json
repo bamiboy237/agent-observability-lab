@@ -1,0 +1,37 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "invalid-unknown-sensitive",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-0000000000a1",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-0000000000a1",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:20:00.000Z",
+    "end_time": "2026-08-04T10:20:01.500Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "policy",
+        "support.confidence": 0.9,
+        "support.outcome": "completed",
+        "support.reason.code": "policy_answer",
+        "support.message.length": 33,
+        "support.latency.ms": 1500.0,
+        "support.retry.count": 0,
+        "user.message": "unrestricted customer text that must never enter evidence",
+        "ls_provider": "openai"
+      }
+    },
+    "child_runs": []
+  }
+}

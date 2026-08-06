@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 SERVICE_NAME = "agent-observability-lab"
 
-_LANGSMITH_OTLP_ENDPOINT = "https://api.smith.langchain.com/otel"
+_LANGSMITH_OTLP_ENDPOINT = "https://api.smith.langchain.com/otel/v1/traces"
 
 
 @dataclass(frozen=True)

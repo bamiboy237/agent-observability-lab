@@ -1,0 +1,129 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-04-wrong-tool-arguments",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000041",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000041",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:04:00.000Z",
+    "end_time": "2026-08-04T10:04:01.800Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "order_status",
+        "support.confidence": 0.99,
+        "support.outcome": "completed",
+        "support.reason.code": "order_not_found",
+        "support.message.length": 83,
+        "support.latency.ms": 1800.0,
+        "support.tokens.input": 660,
+        "support.tokens.output": 102,
+        "support.tokens.total": 762,
+        "support.cost.usd": 0.0025,
+        "support.retry.count": 0
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000042",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000041",
+        "parent_run_id": "10000000-0000-4000-8000-000000000041",
+        "start_time": "2026-08-04T10:04:00.010Z",
+        "end_time": "2026-08-04T10:04:00.590Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 580.0,
+            "model.tokens.input": 300,
+            "model.tokens.output": 12,
+            "model.tokens.total": 312,
+            "model.run.id": "run-04-01",
+            "support.intent": "order_status",
+            "support.confidence": 0.99
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000043",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000041",
+        "parent_run_id": "10000000-0000-4000-8000-000000000041",
+        "start_time": "2026-08-04T10:04:00.620Z",
+        "end_time": "2026-08-04T10:04:01.760Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 1140.0,
+            "model.tokens.input": 360,
+            "model.tokens.output": 90,
+            "model.tokens.total": 450,
+            "model.run.id": "run-04-02"
+          }
+        },
+        "child_runs": [
+          {
+            "id": "10000000-0000-4000-8000-000000000044",
+            "name": "support_agent.tool.get_order_status",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000041",
+            "parent_run_id": "10000000-0000-4000-8000-000000000043",
+            "start_time": "2026-08-04T10:04:00.700Z",
+            "end_time": "2026-08-04T10:04:00.850Z",
+            "inputs": {},
+            "outputs": {},
+            "error": "order_not_found",
+            "extra": {
+              "metadata": {
+                "tool.name": "get_order_status",
+                "tool.order.id": "00000000-0000-4000-8000-0000000000ee",
+                "tool.latency.ms": 150.0,
+                "tool.error.code": "order_not_found"
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000045",
+                "name": "support_agent.database.read",
+                "run_type": "tool",
+                "trace_id": "20000000-0000-4000-8000-000000000041",
+                "parent_run_id": "10000000-0000-4000-8000-000000000044",
+                "start_time": "2026-08-04T10:04:00.710Z",
+                "end_time": "2026-08-04T10:04:00.728Z",
+                "inputs": {},
+                "outputs": {},
+                "error": "order_not_found",
+                "extra": {
+                  "metadata": {
+                    "db.operation": "get_order",
+                    "db.latency.ms": 18.0,
+                    "db.error.code": "order_not_found"
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

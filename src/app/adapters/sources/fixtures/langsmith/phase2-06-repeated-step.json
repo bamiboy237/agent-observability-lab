@@ -1,0 +1,187 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-06-repeated-step",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": 5000,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000061",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000061",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:08:00.000Z",
+    "end_time": "2026-08-04T10:08:01.980Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "order_status",
+        "support.confidence": 0.98,
+        "support.outcome": "completed",
+        "support.reason.code": "ok_with_retry",
+        "support.message.length": 49,
+        "support.latency.ms": 1980.0,
+        "support.tokens.input": 690,
+        "support.tokens.output": 108,
+        "support.tokens.total": 798,
+        "support.cost.usd": 0.0026,
+        "support.retry.count": 1
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000062",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000061",
+        "parent_run_id": "10000000-0000-4000-8000-000000000061",
+        "start_time": "2026-08-04T10:08:00.010Z",
+        "end_time": "2026-08-04T10:08:00.590Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 580.0,
+            "model.tokens.input": 290,
+            "model.tokens.output": 12,
+            "model.tokens.total": 302,
+            "model.run.id": "run-06-01",
+            "support.intent": "order_status",
+            "support.confidence": 0.98
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000063",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000061",
+        "parent_run_id": "10000000-0000-4000-8000-000000000061",
+        "start_time": "2026-08-04T10:08:00.620Z",
+        "end_time": "2026-08-04T10:08:01.960Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 1340.0,
+            "model.tokens.input": 400,
+            "model.tokens.output": 96,
+            "model.tokens.total": 496,
+            "model.run.id": "run-06-02"
+          }
+        },
+        "child_runs": [
+          {
+            "id": "10000000-0000-4000-8000-000000000064",
+            "name": "support_agent.tool.get_order_status",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000061",
+            "parent_run_id": "10000000-0000-4000-8000-000000000063",
+            "start_time": "2026-08-04T10:08:00.700Z",
+            "end_time": "2026-08-04T10:08:00.900Z",
+            "inputs": {},
+            "outputs": {},
+            "error": null,
+            "extra": {
+              "metadata": {
+                "tool.name": "get_order_status",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 200.0
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000065",
+                "name": "support_agent.database.read",
+                "run_type": "tool",
+                "trace_id": "20000000-0000-4000-8000-000000000061",
+                "parent_run_id": "10000000-0000-4000-8000-000000000064",
+                "start_time": "2026-08-04T10:08:00.710Z",
+                "end_time": "2026-08-04T10:08:00.745Z",
+                "inputs": {},
+                "outputs": {},
+                "error": "timeout",
+                "extra": {
+                  "metadata": {
+                    "db.operation": "get_order",
+                    "db.latency.ms": 35.0,
+                    "db.error.code": "timeout"
+                  }
+                },
+                "child_runs": []
+              },
+              {
+                "id": "10000000-0000-4000-8000-000000000066",
+                "name": "support_agent.retry",
+                "run_type": "chain",
+                "trace_id": "20000000-0000-4000-8000-000000000061",
+                "parent_run_id": "10000000-0000-4000-8000-000000000064",
+                "start_time": "2026-08-04T10:08:00.900Z",
+                "end_time": "2026-08-04T10:08:00.920Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "support.retry.count": 1,
+                    "tool.error.code": "timeout"
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          },
+          {
+            "id": "10000000-0000-4000-8000-000000000067",
+            "name": "support_agent.tool.get_order_status",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000061",
+            "parent_run_id": "10000000-0000-4000-8000-000000000063",
+            "start_time": "2026-08-04T10:08:00.930Z",
+            "end_time": "2026-08-04T10:08:01.130Z",
+            "inputs": {},
+            "outputs": {},
+            "error": null,
+            "extra": {
+              "metadata": {
+                "tool.name": "get_order_status",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 200.0
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000068",
+                "name": "support_agent.database.read",
+                "run_type": "tool",
+                "trace_id": "20000000-0000-4000-8000-000000000061",
+                "parent_run_id": "10000000-0000-4000-8000-000000000067",
+                "start_time": "2026-08-04T10:08:00.940Z",
+                "end_time": "2026-08-04T10:08:00.975Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "db.operation": "get_order",
+                    "db.latency.ms": 35.0
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

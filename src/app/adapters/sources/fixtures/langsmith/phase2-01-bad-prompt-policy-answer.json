@@ -1,0 +1,89 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-01-bad-prompt-policy-answer",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000011",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000011",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:00:00.000Z",
+    "end_time": "2026-08-04T10:00:03.120Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "0-bad",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "policy",
+        "support.confidence": 0.95,
+        "support.outcome": "blocked",
+        "support.reason.code": "policy_answer_ungrounded",
+        "support.policy.grounded": false,
+        "support.message.length": 64,
+        "support.latency.ms": 3120.0,
+        "support.tokens.input": 512,
+        "support.tokens.output": 84,
+        "support.tokens.total": 596,
+        "support.cost.usd": 0.002123,
+        "support.retry.count": 0,
+        "ls_provider": "openai"
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000012",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000011",
+        "parent_run_id": "10000000-0000-4000-8000-000000000011",
+        "start_time": "2026-08-04T10:00:00.010Z",
+        "end_time": "2026-08-04T10:00:01.100Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 1090.0,
+            "model.tokens.input": 240,
+            "model.tokens.output": 12,
+            "model.tokens.total": 252,
+            "model.run.id": "run-01-01",
+            "support.intent": "policy",
+            "support.confidence": 0.95
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000013",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000011",
+        "parent_run_id": "10000000-0000-4000-8000-000000000011",
+        "start_time": "2026-08-04T10:00:01.150Z",
+        "end_time": "2026-08-04T10:00:02.710Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 1560.0,
+            "model.tokens.input": 272,
+            "model.tokens.output": 72,
+            "model.tokens.total": 344,
+            "model.cost.usd": 0.002123,
+            "model.run.id": "run-01-02"
+          }
+        },
+        "child_runs": []
+      }
+    ]
+  }
+}

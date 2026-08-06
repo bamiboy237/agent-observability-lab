@@ -46,6 +46,7 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "integration: requires a configured PostgreSQL database",
     "live: requires a hosted model and/or LangSmith credentials",

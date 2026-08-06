@@ -1,0 +1,57 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "invalid-broken-parent",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-0000000000b1",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-0000000000b1",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:21:00.000Z",
+    "end_time": "2026-08-04T10:21:01.500Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "order_status",
+        "support.confidence": 0.98,
+        "support.outcome": "completed",
+        "support.reason.code": "order_status_ok",
+        "support.message.length": 49,
+        "support.latency.ms": 1500.0,
+        "support.retry.count": 0
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-0000000000b2",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-0000000000b1",
+        "parent_run_id": "99999999-0000-4000-8000-000000000099",
+        "start_time": "2026-08-04T10:21:00.600Z",
+        "end_time": "2026-08-04T10:21:01.400Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 800.0,
+            "model.tokens.input": 300,
+            "model.tokens.output": 40,
+            "model.tokens.total": 340
+          }
+        },
+        "child_runs": []
+      }
+    ]
+  }
+}

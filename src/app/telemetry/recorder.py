@@ -62,6 +62,9 @@ class _OtelSpanWrapper(TraceSpan):
         sanitized = sanitize_attributes({name: value}, self._forbidden)
         for key, clean_value in sanitized.items():
             self._span.set_attribute(key, clean_value)
+            # LangSmith indexes only attributes with its own prefixes. Mirror
+            # the allowlisted value so imported runs keep the same evidence.
+            self._span.set_attribute(f"langsmith.metadata.{key}", clean_value)
 
     def set_error(self, reason_code: str) -> None:
         from opentelemetry.trace import Status, StatusCode

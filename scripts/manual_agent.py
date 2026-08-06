@@ -177,6 +177,8 @@ async def main() -> None:
         if trace_id:
             print(f"Trace:     {trace_id}")
 
+    reset_trace_cache()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

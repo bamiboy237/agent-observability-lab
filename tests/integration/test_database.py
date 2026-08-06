@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import pytest
 from alembic import command
@@ -17,6 +18,8 @@ def database_url_or_skip() -> str:
         settings = Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for database integration tests")
+    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
+        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     return str(settings.migration_database_url)
 
 

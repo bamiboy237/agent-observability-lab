@@ -1,0 +1,129 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-08-model-cost-comparison",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000091",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000091",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:13:00.000Z",
+    "end_time": "2026-08-04T10:13:01.150Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-4.1-mini",
+        "support.intent": "order_status",
+        "support.confidence": 0.98,
+        "support.outcome": "completed",
+        "support.reason.code": "order_status_ok",
+        "support.message.length": 49,
+        "support.latency.ms": 1150.0,
+        "support.tokens.input": 480,
+        "support.tokens.output": 76,
+        "support.tokens.total": 556,
+        "support.cost.usd": 0.0004,
+        "support.retry.count": 0
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000092",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000091",
+        "parent_run_id": "10000000-0000-4000-8000-000000000091",
+        "start_time": "2026-08-04T10:13:00.010Z",
+        "end_time": "2026-08-04T10:13:00.430Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 420.0,
+            "model.tokens.input": 210,
+            "model.tokens.output": 9,
+            "model.tokens.total": 219,
+            "model.cost.usd": 0.0002,
+            "model.run.id": "run-08-candidate-01",
+            "support.intent": "order_status",
+            "support.confidence": 0.98
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000093",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000091",
+        "parent_run_id": "10000000-0000-4000-8000-000000000091",
+        "start_time": "2026-08-04T10:13:00.460Z",
+        "end_time": "2026-08-04T10:13:01.080Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 620.0,
+            "model.tokens.input": 270,
+            "model.tokens.output": 67,
+            "model.tokens.total": 337,
+            "model.cost.usd": 0.0002,
+            "model.run.id": "run-08-candidate-02"
+          }
+        },
+        "child_runs": [
+          {
+            "id": "10000000-0000-4000-8000-000000000094",
+            "name": "support_agent.tool.get_order_status",
+            "run_type": "tool",
+            "trace_id": "20000000-0000-4000-8000-000000000091",
+            "parent_run_id": "10000000-0000-4000-8000-000000000093",
+            "start_time": "2026-08-04T10:13:00.520Z",
+            "end_time": "2026-08-04T10:13:00.640Z",
+            "inputs": {},
+            "outputs": {},
+            "error": null,
+            "extra": {
+              "metadata": {
+                "tool.name": "get_order_status",
+                "tool.order.id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                "tool.latency.ms": 120.0
+              }
+            },
+            "child_runs": [
+              {
+                "id": "10000000-0000-4000-8000-000000000095",
+                "name": "support_agent.database.read",
+                "run_type": "tool",
+                "trace_id": "20000000-0000-4000-8000-000000000091",
+                "parent_run_id": "10000000-0000-4000-8000-000000000094",
+                "start_time": "2026-08-04T10:13:00.530Z",
+                "end_time": "2026-08-04T10:13:00.550Z",
+                "inputs": {},
+                "outputs": {},
+                "error": null,
+                "extra": {
+                  "metadata": {
+                    "db.operation": "get_order",
+                    "db.latency.ms": 20.0
+                  }
+                },
+                "child_runs": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

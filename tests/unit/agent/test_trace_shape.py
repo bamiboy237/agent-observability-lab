@@ -30,6 +30,10 @@ def test_allowed_attributes_are_recorded(
         "support.confidence": 0.9,
         "support.message.length": 42,
         "support.policy.grounded": True,
+        "langsmith.metadata.support.intent": "order_status",
+        "langsmith.metadata.support.confidence": 0.9,
+        "langsmith.metadata.support.message.length": 42,
+        "langsmith.metadata.support.policy.grounded": True,
     }
 
 
@@ -44,7 +48,10 @@ def test_non_allowlisted_attributes_are_dropped(
         span.set_attribute("support.intent", "policy")
 
     spans = exporter.get_finished_spans()
-    assert spans[0].attributes == {"support.intent": "policy"}
+    assert spans[0].attributes == {
+        "support.intent": "policy",
+        "langsmith.metadata.support.intent": "policy",
+    }
 
 
 def test_forbidden_substrings_are_dropped_from_allowed_keys(

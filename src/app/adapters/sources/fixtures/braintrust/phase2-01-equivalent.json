@@ -1,0 +1,67 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-01-bad-prompt-policy-answer",
+  "source_trace_id": "phase2-01-bad-prompt-policy-answer",
+  "project": "agent-reliability-lab",
+  "trace": {
+    "spans": [
+      {
+        "id": "bt-01-turn",
+        "parent_id": null,
+        "trace_id": "bt-trace-01",
+        "name": "support_agent.turn",
+        "start_time": "2026-08-04T10:00:00.000Z",
+        "end_time": "2026-08-04T10:00:03.120Z",
+        "error": null,
+        "span_attributes": {
+          "agent.workflow.version": "2.0.0",
+          "agent.routing.instructions.version": "1.0",
+          "agent.answer.instructions.version": "0-bad",
+          "agent.model.provider": "openai",
+          "agent.model.name": "gpt-5.2",
+          "support.intent": "policy",
+          "support.confidence": 0.95,
+          "support.outcome": "blocked",
+          "support.reason.code": "policy_answer_ungrounded",
+          "support.policy.grounded": false,
+          "support.message.length": 64,
+          "support.latency.ms": 3120.0,
+          "support.retry.count": 0
+        },
+        "metrics": {}
+      },
+      {
+        "id": "bt-01-routing",
+        "parent_id": "bt-01-turn",
+        "trace_id": "bt-trace-01",
+        "name": "support_agent.routing",
+        "start_time": "2026-08-04T10:00:00.010Z",
+        "end_time": "2026-08-04T10:00:01.100Z",
+        "error": null,
+        "span_attributes": {
+          "support.intent": "policy",
+          "support.confidence": 0.95
+        },
+        "metrics": {
+          "tokens": {"input": 240, "output": 12},
+          "latency": {"ms": 1090.0}
+        }
+      },
+      {
+        "id": "bt-01-answer",
+        "parent_id": "bt-01-turn",
+        "trace_id": "bt-trace-01",
+        "name": "support_agent.answer",
+        "start_time": "2026-08-04T10:00:01.150Z",
+        "end_time": "2026-08-04T10:00:02.710Z",
+        "error": null,
+        "span_attributes": {},
+        "metrics": {
+          "tokens": {"input": 272, "output": 72},
+          "cost": {"usd": 0.002123},
+          "latency": {"ms": 1560.0}
+        }
+      }
+    ]
+  }
+}

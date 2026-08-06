@@ -1,0 +1,109 @@
+{
+  "fixture_version": 1,
+  "scenario_id": "phase2-02-wrong-policy-evidence",
+  "project": "agent-reliability-lab",
+  "performance_budget_ms": null,
+  "trace": {
+    "id": "10000000-0000-4000-8000-000000000021",
+    "name": "support_agent.turn",
+    "run_type": "chain",
+    "trace_id": "20000000-0000-4000-8000-000000000021",
+    "parent_run_id": null,
+    "start_time": "2026-08-04T10:00:30.000Z",
+    "end_time": "2026-08-04T10:00:31.850Z",
+    "inputs": {},
+    "outputs": {},
+    "error": null,
+    "extra": {
+      "metadata": {
+        "agent.workflow.version": "2.0.0",
+        "agent.routing.instructions.version": "1.0",
+        "agent.answer.instructions.version": "1.0",
+        "agent.model.provider": "openai",
+        "agent.model.name": "gpt-5.2",
+        "support.intent": "policy",
+        "support.confidence": 0.9,
+        "support.outcome": "completed",
+        "support.reason.code": "policy_answer",
+        "support.policy.grounded": false,
+        "support.message.length": 52,
+        "support.latency.ms": 1850.0,
+        "support.tokens.input": 620,
+        "support.tokens.output": 96,
+        "support.tokens.total": 716,
+        "support.cost.usd": 0.0024,
+        "support.retry.count": 0
+      }
+    },
+    "child_runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000022",
+        "name": "support_agent.routing",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000021",
+        "parent_run_id": "10000000-0000-4000-8000-000000000021",
+        "start_time": "2026-08-04T10:00:30.010Z",
+        "end_time": "2026-08-04T10:00:30.890Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 880.0,
+            "model.tokens.input": 300,
+            "model.tokens.output": 14,
+            "model.tokens.total": 314,
+            "model.run.id": "run-02-01",
+            "support.intent": "policy",
+            "support.confidence": 0.9
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000024",
+        "name": "support_agent.retrieval.policy",
+        "run_type": "tool",
+        "trace_id": "20000000-0000-4000-8000-000000000021",
+        "parent_run_id": "10000000-0000-4000-8000-000000000021",
+        "start_time": "2026-08-04T10:00:30.950Z",
+        "end_time": "2026-08-04T10:00:31.070Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "retrieval.source": "policy_documents",
+            "retrieval.policy.slug": "refund-and-delivery",
+            "retrieval.policy.version": "2025-01-01",
+            "retrieval.latency.ms": 120.5
+          }
+        },
+        "child_runs": []
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000023",
+        "name": "support_agent.answer",
+        "run_type": "chain",
+        "trace_id": "20000000-0000-4000-8000-000000000021",
+        "parent_run_id": "10000000-0000-4000-8000-000000000021",
+        "start_time": "2026-08-04T10:00:31.100Z",
+        "end_time": "2026-08-04T10:00:31.820Z",
+        "inputs": {},
+        "outputs": {},
+        "error": null,
+        "extra": {
+          "metadata": {
+            "model.latency.ms": 720.0,
+            "model.tokens.input": 320,
+            "model.tokens.output": 82,
+            "model.tokens.total": 402,
+            "model.cost.usd": 0.0024,
+            "model.run.id": "run-02-02"
+          }
+        },
+        "child_runs": []
+      }
+    ]
+  }
+}
