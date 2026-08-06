@@ -37,8 +37,9 @@ class SimulationCategory(StrEnum):
 class SimulationState(BaseModel):
     """This class stores the approved disposable business state of one scenario.
 
-    The scenario state is in-memory only. Simulation adapters copy it and
-    never write to the configured development database.
+    The lab loads this state into an isolated PostgreSQL sandbox. Fast unit
+    tests can copy it into an in-memory adapter. It must never be loaded into
+    a shared development or production database.
     """
 
     model_config = ConfigDict(extra="forbid")

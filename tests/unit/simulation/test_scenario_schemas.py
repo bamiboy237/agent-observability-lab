@@ -81,8 +81,7 @@ def test_scenario_05_requires_stateful_refund_coverage() -> None:
         requirement.dependency: requirement.kind
         for requirement in scenario.required_dependency_coverage
     }
-    assert kinds["order.lookup"] == "stateful"
-    assert kinds["support.state"] == "stateful"
+    assert kinds["support.database"] == "stateful"
     assert "confirm_refund" in scenario.eligible_actions
 
 
@@ -178,6 +177,6 @@ def test_scenario_02_declares_stale_policy_in_initial_state() -> None:
     scenario = SCENARIO_BY_ID["phase2-02-wrong-policy-evidence"]
     assert [policy.version for policy in scenario.initial_state.policies] == ["2025-01-01"]
     requirement = scenario.required_dependency_coverage[0]
-    assert requirement.dependency == "policy.retrieval"
-    assert requirement.kind == "recorded"
+    assert requirement.dependency == "support.database"
+    assert requirement.kind == "stateful"
     assert "get_policy" in requirement.tools

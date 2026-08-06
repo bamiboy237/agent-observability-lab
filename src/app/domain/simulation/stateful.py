@@ -1,10 +1,8 @@
-"""This module implements the disposable stateful support adapter.
+"""This module implements the fast in-memory support test adapter.
 
-The adapter owns in-memory order and ticket state seeded from the approved
-scenario state. Simulated refund and ticket actions mutate only that state
-and report before/after values with stable reason codes. Reset restores the
-exact initial snapshot. The adapter never touches the configured development
-database.
+This adapter is useful for focused unit tests. Full simulation runs use the
+PostgreSQL sandbox so calls pass through the real application services and
+repository.
 """
 
 import copy
@@ -22,7 +20,13 @@ from app.domain.simulation.errors import (
     UnsupportedToolError,
 )
 from app.domain.simulation.schemas import SimulationState
-from app.domain.support.schemas import OrderRead, OrderStatus, TicketRead, TicketStatus
+from app.domain.support.schemas import (
+    OrderRead,
+    OrderStatus,
+    PolicyDocumentRead,
+    TicketRead,
+    TicketStatus,
+)
 from app.domain.support.service import REFUNDABLE_ORDER_STATUSES
 
 _REFUND_EXECUTED = "refund_executed"
@@ -30,7 +34,7 @@ _TICKET_CREATED = "ticket_created"
 
 
 class StatefulSupportAdapter:
-    """This adapter simulates the support database and ticket store.
+    """Simulate the support database and ticket store for unit tests.
 
     Reads answer from disposable state. Refunds require an eligible order
     and a proposal plus the trusted confirmation flag. Escalation creates a
@@ -38,13 +42,20 @@ class StatefulSupportAdapter:
     """
 
     kind: AdapterKind = "stateful"
-    dependency_name = "support.state"
-    supported_tool_names = ("get_order_status", "propose_refund", "confirm_refund", "escalate")
+    dependency_name = "support.database"
+    supported_tool_names = (
+        "get_order_status",
+        "get_policy",
+        "propose_refund",
+        "confirm_refund",
+        "escalate",
+    )
 
     def __init__(self, refund_confirmed: bool = False) -> None:
         self._refund_confirmed = refund_confirmed
         self._orders: dict[UUID, OrderRead] = {}
         self._tickets: dict[UUID, TicketRead] = {}
+        self._policies: tuple[PolicyDocumentRead, ...] = ()
         self._proposals: set[UUID] = set()
         self._mutations: list[StateMutation] = []
         self._sequence = 0
@@ -65,6 +76,7 @@ class StatefulSupportAdapter:
         self._initial = state.model_copy(deep=True)
         self._orders = {order.id: order for order in state.orders}
         self._tickets = {ticket.id: ticket for ticket in state.tickets}
+        self._policies = state.policies
         self._proposals = set()
         self._mutations = []
         self._sequence = 0
@@ -76,6 +88,7 @@ class StatefulSupportAdapter:
         state = copy.deepcopy(self._initial)
         self._orders = {order.id: order for order in state.orders}
         self._tickets = {ticket.id: ticket for ticket in state.tickets}
+        self._policies = state.policies
         self._proposals = set()
         self._mutations = []
         self._sequence = 0
@@ -157,6 +170,8 @@ class StatefulSupportAdapter:
         self._require_seeded()
         if tool_name == "get_order_status":
             return await self._get_order_status(arguments)
+        if tool_name == "get_policy":
+            return await self._get_policy(arguments)
         if tool_name == "propose_refund":
             return await self._propose_refund(arguments)
         if tool_name == "confirm_refund":
@@ -169,6 +184,26 @@ class StatefulSupportAdapter:
         if order is None:
             return DependencyCallResult(ok=False, error_code="order_not_found")
         return DependencyCallResult(ok=True, payload=order.model_dump(mode="json"))
+
+    async def _get_policy(self, arguments: dict[str, object]) -> DependencyCallResult:
+        if set(arguments) - {"slug"}:
+            raise UnsupportedArgumentsError(
+                dependency=self.dependency_name,
+                tool="get_policy",
+                arguments=arguments,
+            )
+        slug = arguments.get("slug", "refund-and-delivery")
+        if not isinstance(slug, str) or not slug:
+            raise UnsupportedArgumentsError(
+                dependency=self.dependency_name,
+                tool="get_policy",
+                arguments=arguments,
+            )
+        policies = [policy for policy in self._policies if policy.slug == slug]
+        if not policies:
+            return DependencyCallResult(ok=False, error_code="policy_not_found")
+        policy = max(policies, key=lambda item: item.version)
+        return DependencyCallResult(ok=True, payload=policy.model_dump(mode="json"))
 
     async def _propose_refund(self, arguments: dict[str, object]) -> DependencyCallResult:
         order_id = self._order_argument("propose_refund", arguments)

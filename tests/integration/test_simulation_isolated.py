@@ -1,9 +1,4 @@
-"""This module proves simulation never touches the configured database.
-
-Simulated refund and ticket actions run against disposable in-memory state.
-The orders and tickets tables of the configured database must not change
-before, during, or after the simulation.
-"""
+"""Prove that the sandbox uses real SQL and leaves no persistent changes."""
 
 import os
 
@@ -11,12 +6,13 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from pydantic import ValidationError
-from sqlalchemy import select, text
+from sqlalchemy import func, select
 
 from app.config import Settings
 from app.db import get_session_factory
+from app.domain.simulation.postgres import PostgresSupportSandbox
 from app.domain.simulation.scenarios import SCENARIO_BY_ID
-from app.domain.simulation.stateful import StatefulSupportAdapter
+from app.domain.support.models import Order, Ticket
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -30,37 +26,61 @@ def apply_migrations() -> None:
     command.upgrade(Config("alembic.ini"), "head")
 
 
+async def _stored_snapshot() -> tuple[list[tuple[object, object]], int]:
+    async with get_session_factory()() as session:
+        orders = (
+            await session.execute(select(Order.id, Order.status).order_by(Order.id))
+        ).all()
+        ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+    return list(orders), ticket_count or 0
+
+
 @pytest.mark.integration
-async def test_simulation_leaves_database_untouched() -> None:
-    async with get_session_factory()() as session:
-        orders_before = (
-            await session.execute(
-                select(text("id"), text("status")).select_from(text("orders")).order_by(text("id"))
-            )
-        ).all()
-        tickets_before = await session.execute(
-            select(text("count(*)")).select_from(text("tickets"))
-        )
-        ticket_count_before = tickets_before.scalar_one()
-
-    state = SCENARIO_BY_ID["phase2-05-unconfirmed-refund"].initial_state
-    adapter = StatefulSupportAdapter(refund_confirmed=True)
-    await adapter.seed(state)
-    await adapter.call("get_order_status", {"order_id": state.orders[0].id})
-    await adapter.call("propose_refund", {"order_id": state.orders[0].id})
-    await adapter.call("confirm_refund", {"order_id": state.orders[0].id})
-    await adapter.call("escalate", {"subject": "Escalated support request"})
-    await adapter.reset()
+async def test_postgres_sandbox_uses_real_services_and_rolls_back() -> None:
+    before = await _stored_snapshot()
+    original = SCENARIO_BY_ID["phase2-05-unconfirmed-refund"]
+    scenario = original.model_copy(
+        update={
+            "request": original.request.model_copy(update={"refund_confirmed": True}),
+            "content_hash": None,
+        }
+    )
+    order_id = scenario.initial_state.orders[0].id
 
     async with get_session_factory()() as session:
-        orders_after = (
-            await session.execute(
-                select(text("id"), text("status")).select_from(text("orders")).order_by(text("id"))
-            )
-        ).all()
-        tickets_after = await session.execute(select(text("count(*)")).select_from(text("tickets")))
-        ticket_count_after = tickets_after.scalar_one()
+        transaction = await session.begin()
+        try:
+            sandbox = PostgresSupportSandbox(session, scenario, isolation_confirmed=True)
+            await sandbox.seed(scenario.initial_state)
 
-    assert orders_before == orders_after
-    assert ticket_count_before == ticket_count_after
-    assert [row[1] for row in orders_before] == [row[1] for row in orders_after]
+            read = await sandbox.call("get_order_status", {"order_id": order_id})
+            proposal = await sandbox.call(
+                "propose_refund",
+                {"order_id": order_id, "reason": "Customer requested a refund"},
+            )
+            refund = await sandbox.call("confirm_refund", {"order_id": order_id})
+            ticket = await sandbox.call("escalate", {"subject": "Review completed refund"})
+
+            stored_order = await session.get(Order, order_id)
+            stored_ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+            assert read.ok and read.payload["status"] == "delivered"
+            assert proposal.ok
+            assert refund.ok and refund.payload["status"] == "refunded"
+            assert ticket.ok
+            assert stored_order is not None and stored_order.status == "refunded"
+            assert stored_ticket_count == 1
+            assert [mutation.reason_code for mutation in sandbox.mutations()] == [
+                "refund_executed",
+                "ticket_created",
+            ]
+
+            await sandbox.reset()
+            restored_order = await session.get(Order, order_id)
+            restored_ticket_count = await session.scalar(select(func.count()).select_from(Ticket))
+            assert restored_order is not None and restored_order.status == "delivered"
+            assert restored_ticket_count == 0
+            assert sandbox.mutations() == ()
+        finally:
+            await transaction.rollback()
+
+    assert await _stored_snapshot() == before

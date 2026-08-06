@@ -2,7 +2,7 @@
 
 Refund and ticket actions mutate only in-memory scenario state and report
 before/after values with stable reason codes. Reset restores the exact
-initial state. The configured development database is never touched here.
+initial state. This fast unit-test substitute never touches PostgreSQL.
 """
 
 import pytest
@@ -186,6 +186,7 @@ def test_stateful_adapter_reports_kind_and_tools() -> None:
     assert adapter.kind == "stateful"
     assert adapter.supported_tools() == (
         "get_order_status",
+        "get_policy",
         "propose_refund",
         "confirm_refund",
         "escalate",

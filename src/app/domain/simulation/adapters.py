@@ -2,8 +2,8 @@
 
 An adapter sanitizes approved captured data, seeds disposable state, handles
 one simulated dependency call, reports mutations, and resets the case.
-Recorded-read adapters replay approved responses. Stateful adapters own
-disposable in-memory state and accept writes. Adapters fail closed on
+Recorded-read adapters replay approved external responses. Stateful adapters
+can own memory or use an isolated database. Adapters fail closed on
 unsupported tools, arguments, and state. A registry routes calls by tool
 name and reports scenario coverage.
 """

@@ -52,7 +52,7 @@ def test_coverage_report_lists_stateful_transitions() -> None:
     report = registry.coverage_report()
 
     item = report.covered[0]
-    assert item.dependency == "support.state"
+    assert item.dependency == "support.database"
     assert item.kind == "stateful"
     assert item.state_transitions == (
         "order:delivered->refunded",
@@ -67,21 +67,21 @@ def test_coverage_report_flags_missing_requirements() -> None:
 
     report = registry.coverage_report(scenario)
 
-    assert sorted(report.missing) == ["order.lookup", "support.state"]
+    assert report.missing == ("support.database",)
     assert report.complete is False
 
 
-def test_kind_mismatch_counts_as_missing_coverage() -> None:
+def test_recorded_lookup_does_not_replace_database_sandbox() -> None:
     registry = SimulationAdapterRegistry((RecordedOrderLookup(),))
     scenario = SCENARIO_BY_ID["phase2-05-unconfirmed-refund"]
 
     report = registry.coverage_report(scenario)
 
-    assert "order.lookup" in report.missing
+    assert "support.database" in report.missing
 
 
-def test_scenario_03_coverage_is_complete_with_recorded_adapter() -> None:
-    registry = SimulationAdapterRegistry((RecordedOrderLookup(),))
+def test_scenario_03_coverage_is_complete_with_stateful_adapter() -> None:
+    registry = SimulationAdapterRegistry((StatefulSupportAdapter(),))
     scenario = SCENARIO_BY_ID["phase2-03-database-timeout"]
 
     assert registry.coverage_report(scenario).complete

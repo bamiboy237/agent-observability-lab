@@ -208,7 +208,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.POLICY_ANSWER,
             note="The policy store served only the outdated 2025-01-01 version.",
         ),
-        coverage=(_recorded("policy.retrieval", "get_policy"),),
+        coverage=(_stateful("support.database", "get_policy"),),
         local_only_fields=("request message", "answer text", "policy content"),
     ),
     _scenario(
@@ -235,7 +235,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.OK_WITH_RETRY,
             note="The order repository raised TimeoutError once before success.",
         ),
-        coverage=(_recorded("order.lookup", "get_order_status"),),
+        coverage=(_stateful("support.database", "get_order_status"),),
         local_only_fields=("request message", "order data"),
     ),
     _scenario(
@@ -261,10 +261,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.ORDER_NOT_FOUND,
             note="The request named an order identifier that does not exist.",
         ),
-        coverage=(
-            _recorded("order.lookup", "get_order_status"),
-            _stateful("support.state", "escalate"),
-        ),
+        coverage=(_stateful("support.database", "get_order_status", "escalate"),),
         local_only_fields=("request message", "answer text"),
     ),
     _scenario(
@@ -299,8 +296,13 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             note="The trusted refund_confirmed field stayed false despite the message text.",
         ),
         coverage=(
-            _stateful("order.lookup", "get_order_status"),
-            _stateful("support.state", "propose_refund", "confirm_refund", "escalate"),
+            _stateful(
+                "support.database",
+                "get_order_status",
+                "propose_refund",
+                "confirm_refund",
+                "escalate",
+            ),
         ),
         local_only_fields=("request message", "answer text"),
     ),
@@ -328,7 +330,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.OK_WITH_RETRY,
             note="The order repository failed once with a transient error before success.",
         ),
-        coverage=(_recorded("order.lookup", "get_order_status"),),
+        coverage=(_stateful("support.database", "get_order_status"),),
         local_only_fields=("request message", "order data"),
     ),
     _scenario(
@@ -355,7 +357,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.OK_SLOW,
             note="The order repository delayed every read by 2500 ms.",
         ),
-        coverage=(_recorded("order.lookup", "get_order_status"),),
+        coverage=(_stateful("support.database", "get_order_status"),),
         local_only_fields=("request message", "order data"),
     ),
     _scenario(
@@ -381,7 +383,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             reason_code=ReasonCode.ORDER_STATUS_OK,
             note="Two model configurations produced equivalent accepted outcomes.",
         ),
-        coverage=(_recorded("order.lookup", "get_order_status"),),
+        coverage=(_stateful("support.database", "get_order_status"),),
         local_only_fields=("request message", "answer text"),
     ),
 )
