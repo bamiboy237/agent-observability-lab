@@ -11,7 +11,11 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
-from app.domain.bundle.allowlist import scan_bundle_content, validate_safe_text
+from app.domain.bundle.allowlist import (
+    scan_bundle_content,
+    validate_fault_script,
+    validate_safe_text,
+)
 from app.domain.bundle.errors import MissingCoverageError, MissingEvidenceError, RejectedReviewError
 from app.domain.bundle.extract import (
     extract_dependency_fixtures,
@@ -32,6 +36,7 @@ from app.domain.bundle.schemas import (
 )
 from app.domain.evidence.schemas import TraceEvidence, compute_content_hash
 from app.domain.simulation.adapters import CoverageItem, requirement_is_covered
+from app.domain.simulation.faults import FaultScript
 from app.domain.simulation.schemas import (
     ExpectedBehavior,
     ExpectedStateTransition,
@@ -134,7 +139,22 @@ def _safe_expected_behavior(expected: ExpectedBehavior) -> ExpectedBehavior:
         )
         for transition in expected.state_transitions
     )
-    return expected.model_copy(update={"state_transitions": transitions})
+    permitted = tuple(
+        ExpectedStateTransition(
+            resource=transition.resource,
+            resource_id=synthetic_id(transition.resource_id),
+            from_status=transition.from_status,
+            to_status=transition.to_status,
+            reason_code=transition.reason_code,
+        )
+        for transition in expected.permitted_state_transitions
+    )
+    return expected.model_copy(
+        update={
+            "state_transitions": transitions,
+            "permitted_state_transitions": permitted,
+        }
+    )
 
 
 def _safe_scenario(
@@ -171,6 +191,7 @@ def compile_bundle(
     source_evidence: str | None = None,
     corrected_expected_behavior: ExpectedBehavior | None = None,
     dependency_fixtures: Sequence[DependencyFixture] | None = None,
+    fault_script: FaultScript | None = None,
     adapter_versions: Mapping[str, str] | None = None,
     redaction_decisions: Sequence[RedactionDecision] | None = None,
     coverage_items: Sequence[CoverageItem] = (),
@@ -238,6 +259,24 @@ def compile_bundle(
         dependency_fixtures=tuple(dependency_fixtures) if dependency_fixtures is not None else (),
     )
 
+    declared_tools = tuple(
+        sorted(
+            {
+                tool
+                for requirement in scenario.required_dependency_coverage
+                for tool in requirement.tools
+            }
+        )
+    )
+    validate_fault_script(
+        fault_script,
+        allowed_tools=declared_tools,
+        allowed_dependencies=tuple(
+            requirement.dependency for requirement in scenario.required_dependency_coverage
+        ),
+        forbidden_substrings=tuple(forbidden_substrings) + private_source_values,
+    )
+
     scan_bundle_content(
         resources={seed.resource: [dict(record) for record in seed.records] for seed in seeds},
         fixtures=[fixture.model_dump(mode="json") for fixture in fixtures],
@@ -281,6 +320,7 @@ def compile_bundle(
         ),
         resource_seeds=seeds,
         dependency_fixtures=fixtures,
+        fault_script=fault_script,
         adapter_versions=versions,
         coverage=coverage,
         redaction_decisions=all_redactions,

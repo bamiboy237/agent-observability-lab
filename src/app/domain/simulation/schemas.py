@@ -89,7 +89,10 @@ class ExpectedBehavior(BaseModel):
     """This class stores the behavior that the lab accepts for one scenario.
 
     A person approves these values. A failed production output never becomes
-    the expected behavior by default.
+    the expected behavior by default. ``policy_version`` is the exact policy
+    document version the run must retrieve for the scenario's evidence, and
+    ``permitted_state_transitions`` are the state changes the scenario
+    allows: any mutation outside them is an unexpected state change.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -97,7 +100,9 @@ class ExpectedBehavior(BaseModel):
     outcome: SupportOutcome
     reason_codes: tuple[ReasonCode, ...] = Field(min_length=1)
     policy_grounded: bool | None = None
+    policy_version: str | None = Field(default=None, max_length=50)
     state_transitions: tuple[ExpectedStateTransition, ...] = ()
+    permitted_state_transitions: tuple[ExpectedStateTransition, ...] = ()
     budgets: SimulationBudgets = Field(default_factory=SimulationBudgets)
     note: str | None = Field(default=None, max_length=1000)
 

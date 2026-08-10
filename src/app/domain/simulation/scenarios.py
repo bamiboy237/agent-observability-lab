@@ -9,7 +9,7 @@ changing the expectation.
 
 import hashlib
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.domain.agent.schemas import ReasonCode, RouteIntent, SupportOutcome, SupportRequest
 from app.domain.agent.service import TOOLS_BY_INTENT
@@ -17,6 +17,7 @@ from app.domain.evidence.schemas import TraceEvidence
 from app.domain.simulation.schemas import (
     DependencyCoverageRequirement,
     ExpectedBehavior,
+    ExpectedStateTransition,
     OriginalProductionBehavior,
     SimulationBudgets,
     SimulationCategory,
@@ -82,6 +83,8 @@ def _expected(
     outcome: SupportOutcome,
     reason_codes: tuple[ReasonCode, ...],
     policy_grounded: bool | None = None,
+    policy_version: str | None = None,
+    permitted: tuple[ExpectedStateTransition, ...] = (),
     budget_ms: int | None = None,
     note: str | None = None,
 ) -> ExpectedBehavior:
@@ -89,6 +92,8 @@ def _expected(
         outcome=outcome,
         reason_codes=reason_codes,
         policy_grounded=policy_grounded,
+        policy_version=policy_version,
+        permitted_state_transitions=permitted,
         budgets=SimulationBudgets(performance_budget_ms=budget_ms),
         note=note,
     )
@@ -195,12 +200,16 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
         ),
         state=_state(policies=(STALE_POLICY,)),
         expected=_expected(
-            outcome=SupportOutcome.COMPLETED,
-            reason_codes=(ReasonCode.POLICY_ANSWER, ReasonCode.POLICY_ANSWER_UNGROUNDED),
+            outcome=SupportOutcome.BLOCKED,
+            reason_codes=(ReasonCode.POLICY_ANSWER_UNGROUNDED,),
             policy_grounded=False,
+            policy_version="2025-01-01",
             note=(
-                "The answer is served from the retrieved document; the trace records "
-                "retrieval.policy.version=2025-01-01 and grounded=false. No state changes."
+                "The policy store serves only the stale 2025-01-01 version. The "
+                "retrieval evidence is the retrieved document and version, not the "
+                "reason code: the trace records retrieval.policy.version=2025-01-01 "
+                "and grounded=false, and the turn blocks the ungrounded answer. "
+                "No state changes."
             ),
         ),
         original=_original(
@@ -251,6 +260,14 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
         expected=_expected(
             outcome=SupportOutcome.COMPLETED,
             reason_codes=(ReasonCode.ORDER_NOT_FOUND, ReasonCode.ESCALATED),
+            permitted=(
+                ExpectedStateTransition(
+                    resource="ticket",
+                    resource_id=uuid4(),
+                    to_status="created",
+                    reason_code="ticket_created",
+                ),
+            ),
             note=(
                 "The tool returns order_not_found; the model must not invent order "
                 "data. Escalation may create a ticket. No order state changes."
@@ -283,6 +300,21 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
                 ReasonCode.REFUND_BLOCKED_UNCONFIRMED,
                 ReasonCode.REFUND_PROPOSED,
                 ReasonCode.ESCALATED,
+            ),
+            permitted=(
+                ExpectedStateTransition(
+                    resource="order",
+                    resource_id=DELIVERED_ORDER,
+                    from_status="delivered",
+                    to_status="refunded",
+                    reason_code="refund_executed",
+                ),
+                ExpectedStateTransition(
+                    resource="ticket",
+                    resource_id=uuid4(),
+                    to_status="created",
+                    reason_code="ticket_created",
+                ),
             ),
             note=(
                 "The agent may propose the refund, but execution is rejected: "

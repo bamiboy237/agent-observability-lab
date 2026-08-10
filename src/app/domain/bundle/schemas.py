@@ -18,8 +18,13 @@ from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.bundle.allowlist import scan_bundle_content, validate_metadata_content
+from app.domain.bundle.allowlist import (
+    scan_bundle_content,
+    validate_fault_script,
+    validate_metadata_content,
+)
 from app.domain.evidence.schemas import TraceSourceRef
+from app.domain.simulation.faults import FaultScript
 from app.domain.simulation.schemas import (
     DependencyCoverageRequirement,
     ExpectedBehavior,
@@ -170,6 +175,7 @@ class SimulationBundle(BaseModel):
     configuration_versions: ConfigurationVersions = Field(default_factory=ConfigurationVersions)
     resource_seeds: tuple[EnvironmentResourceSeed, ...] = ()
     dependency_fixtures: tuple[DependencyFixture, ...] = ()
+    fault_script: FaultScript | None = None
     adapter_versions: dict[str, str] = Field(default_factory=dict)
     coverage: CoverageInfo = Field(default_factory=CoverageInfo)
     redaction_decisions: tuple[RedactionDecision, ...] = ()
@@ -178,7 +184,7 @@ class SimulationBundle(BaseModel):
 
     @model_validator(mode="after")
     def validate_bundle_content(self) -> "SimulationBundle":
-        """This method scans every seed and fixture before accepting a bundle."""
+        """This method scans every seed, fixture, and fault script before accepting a bundle."""
         resources: dict[str, list[dict[str, object]]] = {}
         for seed in self.resource_seeds:
             resources.setdefault(seed.resource, []).extend(
@@ -189,6 +195,12 @@ class SimulationBundle(BaseModel):
             fixtures=[fixture.model_dump(mode="json") for fixture in self.dependency_fixtures],
             forbidden_substrings=(),
         )
+        validate_fault_script(
+            self.fault_script,
+            allowed_tools=self._declared_tools(),
+            allowed_dependencies=self._declared_dependencies(),
+            forbidden_substrings=(),
+        )
         validate_metadata_content(
             self.model_dump(
                 mode="json",
@@ -197,10 +209,34 @@ class SimulationBundle(BaseModel):
                     "content_hash",
                     "resource_seeds",
                     "dependency_fixtures",
+                    "fault_script",
                 },
             )
         )
         return self
+
+    def _declared_tools(self) -> tuple[str, ...]:
+        """This method returns every tool that the scenario declares."""
+        return tuple(
+            sorted(
+                {
+                    tool
+                    for requirement in self.scenario.required_dependency_coverage
+                    for tool in requirement.tools
+                }
+            )
+        )
+
+    def _declared_dependencies(self) -> tuple[str, ...]:
+        """This method returns every dependency that the scenario declares."""
+        return tuple(
+            sorted(
+                {
+                    requirement.dependency
+                    for requirement in self.scenario.required_dependency_coverage
+                }
+            )
+        )
 
     @model_validator(mode="after")
     def ensure_bundle_identity(self) -> "SimulationBundle":

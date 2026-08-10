@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     model_name: str | None = None
     model_base_url: str | None = None
     model_api_key: SecretStr | None = None
+    model_candidate_provider: Literal["openai", "anthropic"] | None = None
+    model_candidate_name: str | None = None
+    model_candidate_base_url: str | None = None
+    model_candidate_api_key: SecretStr | None = None
 
     @field_validator("database_url", "database_url_unpooled", mode="before")
     @classmethod
@@ -53,26 +57,40 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_model_settings(self) -> "Settings":
-        """This method accepts a complete model configuration or no model configuration."""
-        if (self.model_provider is None) != (self.model_name is None):
-            raise ValueError("MODEL_PROVIDER and MODEL_NAME must be set together")
-        if self.model_provider is not None:
-            if self.model_api_key is None and not self._has_local_model_endpoint():
-                raise ValueError(
-                    "MODEL_API_KEY is required unless MODEL_BASE_URL points to a local endpoint"
-                )
+        """This method accepts complete model configurations or none at all."""
+        for provider, name, api_key, base_url in (
+            (self.model_provider, self.model_name, self.model_api_key, self.model_base_url),
+            (
+                self.model_candidate_provider,
+                self.model_candidate_name,
+                self.model_candidate_api_key,
+                self.model_candidate_base_url,
+            ),
+        ):
+            if (provider is None) != (name is None):
+                raise ValueError("MODEL_PROVIDER and MODEL_NAME must be set together")
+            if provider is not None:
+                if api_key is None and not self._has_local_model_endpoint(base_url):
+                    raise ValueError(
+                        "MODEL_API_KEY is required unless MODEL_BASE_URL points to a local endpoint"
+                    )
         return self
 
-    def _has_local_model_endpoint(self) -> bool:
-        if self.model_base_url is None:
+    def _has_local_model_endpoint(self, base_url: str | None = None) -> bool:
+        if base_url is None:
             return False
-        host = urlsplit(self.model_base_url).hostname or ""
+        host = urlsplit(base_url).hostname or ""
         return host in {"localhost", "127.0.0.1", "::1"}
 
     @property
     def model_configured(self) -> bool:
         """This property reports whether these settings build a hosted model."""
         return self.model_provider is not None and self.model_name is not None
+
+    @property
+    def candidate_model_configured(self) -> bool:
+        """This property reports whether a second hosted model is configured."""
+        return self.model_candidate_provider is not None and self.model_candidate_name is not None
 
     @property
     def migration_database_url(self) -> PostgresDsn:

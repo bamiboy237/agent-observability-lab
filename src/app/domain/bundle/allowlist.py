@@ -248,6 +248,57 @@ def _scan_fixture_arguments(
         )
 
 
+def validate_fault_script(
+    script: object,
+    *,
+    allowed_tools: Sequence[str] | None = None,
+    allowed_dependencies: Sequence[str] | None = None,
+    forbidden_substrings: Sequence[str] = (),
+) -> None:
+    """This function scans one fault script for unsafe content.
+
+    The scan rejects secret-like values in the tool name and in every
+    argument, requires scalar arguments, and optionally rejects fault tools
+    that no declared dependency covers. A fault script names the exact
+    dependency boundary it wraps: when the declared dependencies are known,
+    a script that targets an undeclared dependency is rejected. Successful
+    calls must still use the real path, so the script itself only declares
+    failures.
+    """
+    from app.domain.bundle.errors import InvalidBundleFixtureError
+
+    if script is None:
+        return
+    declared = frozenset(allowed_tools or ())
+    dependencies = frozenset(allowed_dependencies or ())
+    dependency = getattr(script, "dependency", None)
+    if allowed_dependencies is not None and dependency not in dependencies:
+        raise InvalidBundleFixtureError(
+            detail=(
+                f"fault script targets dependency {dependency!r}, which no "
+                f"declared dependency {sorted(dependencies)!r} covers"
+            )
+        )
+    entries = getattr(script, "entries", None)
+    if entries is None:
+        raise ForbiddenDataError(detail="fault script carries no entries")
+    for entry in entries:
+        tool = entry.tool
+        if allowed_tools is not None and tool not in declared:
+            raise InvalidBundleFixtureError(
+                detail=(
+                    f"fault tool {tool!r} is not covered by any declared dependency "
+                    f"tool {sorted(declared)!r}"
+                )
+            )
+        _scan_fixture_string(tool, context="fault script tool", substrings=forbidden_substrings)
+        _scan_fixture_arguments(
+            entry.arguments,
+            context=f"fault script {tool!r} arguments",
+            substrings=forbidden_substrings,
+        )
+
+
 def scan_bundle_content(
     *,
     resources: Mapping[str, Sequence[Mapping[str, object]]],

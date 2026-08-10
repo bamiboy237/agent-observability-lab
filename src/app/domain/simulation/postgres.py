@@ -1,7 +1,7 @@
 """Run support scenarios through the real application code and PostgreSQL."""
 
 import copy
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -29,12 +29,22 @@ _TICKET_CREATED = "ticket_created"
 
 
 class ObservedSupportRepository:
-    """Delegate to the real repository and report accepted database writes."""
+    """Delegate to the real repository and report accepted database writes.
 
-    def __init__(self, repository: SupportRepository) -> None:
+    An optional mutation listener observes every accepted mutation as it is
+    recorded, so simulation runs can stream state changes while the agent
+    executes. Without a listener the behavior is unchanged.
+    """
+
+    def __init__(
+        self,
+        repository: SupportRepository,
+        mutation_listener: Callable[[StateMutation], None] | None = None,
+    ) -> None:
         self._repository = repository
         self._mutations: list[StateMutation] = []
         self._sequence = 0
+        self._listener = mutation_listener
 
     async def get_order(self, order_id: UUID) -> OrderRead | None:
         return await self._repository.get_order(order_id)
@@ -93,17 +103,18 @@ class ObservedSupportRepository:
         reason_code: str,
     ) -> None:
         self._sequence += 1
-        self._mutations.append(
-            StateMutation(
-                sequence=self._sequence,
-                resource=resource,
-                resource_id=str(resource_id),
-                field=field,
-                before=before,
-                after=after,
-                reason_code=reason_code,
-            )
+        mutation = StateMutation(
+            sequence=self._sequence,
+            resource=resource,
+            resource_id=str(resource_id),
+            field=field,
+            before=before,
+            after=after,
+            reason_code=reason_code,
         )
+        self._mutations.append(mutation)
+        if self._listener is not None:
+            self._listener(mutation)
 
 
 class PostgresSupportSandbox:
@@ -129,6 +140,7 @@ class PostgresSupportSandbox:
         scenario: SimulationScenario,
         *,
         isolation_confirmed: bool,
+        mutation_listener: Callable[[StateMutation], None] | None = None,
     ) -> None:
         if not isolation_confirmed:
             raise ValueError("PostgreSQL sandbox seeding requires an isolated database")
@@ -136,7 +148,8 @@ class PostgresSupportSandbox:
         self._scenario = scenario
         self._initial: SimulationState | None = None
         self._observed_repository = ObservedSupportRepository(
-            SqlAlchemySupportRepository(session)
+            SqlAlchemySupportRepository(session),
+            mutation_listener=mutation_listener,
         )
         self._agent_service: SupportAgentService | None = None
 

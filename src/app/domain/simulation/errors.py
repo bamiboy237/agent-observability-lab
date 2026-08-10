@@ -76,3 +76,82 @@ class InvalidSimulationFixture(SimulationError):
             message=f"Captured fixture data failed sanitization: {detail}",
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
         )
+
+
+class MalformedResponseError(SimulationError):
+    """This class represents a malformed response injected by a fault script.
+
+    The reference agent tools do not catch this error, so the fault
+    reproduces an unexpected provider response at the owned-system boundary.
+    """
+
+    def __init__(self, *, dependency: str, tool: str) -> None:
+        super().__init__(
+            code="malformed_response",
+            message=(
+                f"Dependency {dependency!r} returned a malformed response for "
+                f"tool {tool!r}; the simulated boundary does not invent a repair"
+            ),
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+
+class InvalidSimulationBundleError(SimulationError):
+    """This class represents a bundle that cannot drive a simulation run."""
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(
+            code="invalid_simulation_bundle",
+            message=f"Simulation bundle cannot drive a run: {detail}",
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+
+class EnvironmentRunError(SimulationError):
+    """This class represents an environment failure while provisioning a run."""
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(
+            code="environment_failure",
+            message=f"The simulation environment failed: {detail}",
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+
+class RetentionUnavailableError(SimulationError):
+    """This class represents a retention request that no manager can serve.
+
+    Retaining a PostgreSQL environment keeps its transaction open. Without a
+    retention manager that can retrieve and destroy the retained environment,
+    an expiry could silently leak a database session, so retention requests
+    are rejected until such a manager exists.
+    """
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(
+            code="retention_unavailable",
+            message=f"Environment retention is not available: {detail}",
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+
+class ModelRunError(SimulationError):
+    """This class represents a hosted-model failure that aborts a run."""
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(
+            code="model_failure",
+            message=f"The hosted model failed during the simulation: {detail}",
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+
+
+class CleanupRunError(SimulationError):
+    """This class represents a failure to destroy a simulated environment."""
+
+    def __init__(self, *, detail: str) -> None:
+        super().__init__(
+            code="cleanup_failure",
+            message=f"The simulation environment could not be cleaned up: {detail}",
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
