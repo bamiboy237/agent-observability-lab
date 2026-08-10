@@ -132,7 +132,12 @@ def _safe_expected_behavior(expected: ExpectedBehavior) -> ExpectedBehavior:
     transitions = tuple(
         ExpectedStateTransition(
             resource=transition.resource,
-            resource_id=synthetic_id(transition.resource_id),
+            resource_id=(
+                synthetic_id(transition.resource_id)
+                if transition.resource_id is not None
+                else None
+            ),
+            any_resource_id=transition.any_resource_id,
             from_status=transition.from_status,
             to_status=transition.to_status,
             reason_code=transition.reason_code,
@@ -142,7 +147,12 @@ def _safe_expected_behavior(expected: ExpectedBehavior) -> ExpectedBehavior:
     permitted = tuple(
         ExpectedStateTransition(
             resource=transition.resource,
-            resource_id=synthetic_id(transition.resource_id),
+            resource_id=(
+                synthetic_id(transition.resource_id)
+                if transition.resource_id is not None
+                else None
+            ),
+            any_resource_id=transition.any_resource_id,
             from_status=transition.from_status,
             to_status=transition.to_status,
             reason_code=transition.reason_code,

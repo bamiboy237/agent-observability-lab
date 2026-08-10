@@ -118,23 +118,6 @@ class EnvironmentRunError(SimulationError):
         )
 
 
-class RetentionUnavailableError(SimulationError):
-    """This class represents a retention request that no manager can serve.
-
-    Retaining a PostgreSQL environment keeps its transaction open. Without a
-    retention manager that can retrieve and destroy the retained environment,
-    an expiry could silently leak a database session, so retention requests
-    are rejected until such a manager exists.
-    """
-
-    def __init__(self, *, detail: str) -> None:
-        super().__init__(
-            code="retention_unavailable",
-            message=f"Environment retention is not available: {detail}",
-            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-        )
-
-
 class ModelRunError(SimulationError):
     """This class represents a hosted-model failure that aborts a run."""
 

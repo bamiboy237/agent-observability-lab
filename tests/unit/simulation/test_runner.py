@@ -2,9 +2,9 @@
 
 The runner reconstructs the safe request and synthetic state from one
 bundle, provisions a disposable environment, runs the real agent workflow
-against the scripted hosted-model boundary, applies approved fixtures and
-fault scripts, streams events while the run executes, persists the same
-transcript, and destroys or retains the environment. The verdict
+against the scripted hosted-model boundary, applies approved fault scripts,
+streams events while the run executes, persists the same
+transcript, and destroys the environment. The verdict
 distinguishes reproduced behavior, accepted behavior, failed behavior,
 unexpected access, and missing coverage, and the runner returns safe typed
 errors for invalid bundles, missing coverage, model failures, and cleanup
@@ -33,16 +33,15 @@ from app.domain.bundle.compiler import compile_bundle
 from app.domain.bundle.schemas import DependencyFixture
 from app.domain.simulation.adapters import CoverageItem
 from app.domain.simulation.errors import (
+    CleanupRunError,
     InvalidSimulationBundleError,
     ModelRunError,
-    RetentionUnavailableError,
     UnsupportedArgumentsError,
 )
 from app.domain.simulation.events import SimulationEventCollector, SimulationEventKind
 from app.domain.simulation.faults import FaultKind, FaultScript, FaultScriptEntry
 from app.domain.simulation.provisioner import (
     EnvironmentRequest,
-    RetentionRequest,
     SupportEnvironmentProvisioner,
 )
 from app.domain.simulation.runner import (
@@ -575,33 +574,6 @@ async def test_runner_rejects_recorded_fixtures_for_the_owned_database() -> None
         )
 
 
-async def test_runner_rejects_retention_until_a_manager_exists(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bundle = await _bundle(
-        "phase2-08-model-cost-comparison", trace_id="phase2-08-model-cost-comparison-primary"
-    )
-    state = state_from_bundle(bundle)
-    install_scripted_model(monkeypatch, order_status_plan(state.orders[0].id))
-
-    collector = SimulationEventCollector()
-    provisioner = StatefulSupportProvisioner(
-        scenario_from_bundle(bundle),
-        event_sink=collector,
-    )
-    with pytest.raises(RetentionUnavailableError, match="no retention manager exists"):
-        await run_bundle(
-            bundle=bundle,
-            provisioner_factory=_provisioner_factory(provisioner),
-            model_config=MODEL_CONFIG,
-            collector=collector,
-            retention=RetentionRequest(reason="review the run", ttl_hours=1),
-        )
-
-    assert provisioner.created is False
-    assert collector.events() == ()
-
-
 async def test_runner_cleans_up_and_raises_model_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -617,6 +589,28 @@ async def test_runner_cleans_up_and_raises_model_failure(
             model_config=MODEL_CONFIG,
         )
     assert excinfo.value.code == "model_failure"
+
+
+async def test_runner_attaches_cleanup_failure_to_original_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = await _bundle("phase2-01-bad-prompt-policy-answer")
+    install_scripted_model(monkeypatch, escalate_plan())
+
+    with pytest.raises(ModelRunError) as excinfo:
+        await run_bundle(
+            bundle=bundle,
+            provisioner_factory=stateful_provisioner_factory(
+                boundary_error=RuntimeError("database connection lost"),
+                destroy_error=RuntimeError("rollback failed"),
+            ),
+            model_config=MODEL_CONFIG,
+        )
+
+    cleanup_failure = getattr(excinfo.value, "cleanup_failure", None)
+    assert isinstance(cleanup_failure, CleanupRunError)
+    assert cleanup_failure.code == "cleanup_failure"
+    assert any("rollback failed" in note for note in excinfo.value.__notes__)
 
 
 async def test_runner_rejects_bundle_without_derived_identity() -> None:

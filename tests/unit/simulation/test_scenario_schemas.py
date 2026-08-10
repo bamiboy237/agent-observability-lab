@@ -5,6 +5,8 @@ Expected behavior stays separate from the original production output.
 A scenario may be designed from fixed local data or linked to evidence.
 """
 
+from uuid import uuid4
+
 import pytest
 from pydantic import ValidationError
 
@@ -160,6 +162,54 @@ def test_designed_scenario_can_declare_expected_state_transition() -> None:
     restored = SimulationScenario.model_validate(dumped)
     assert restored.expected_behavior.state_transitions[0].reason_code == "refund_executed"
     assert restored.expected_behavior.state_transitions[0].to_status == "refunded"
+
+
+def test_transition_resource_id_wildcard_is_explicit_and_exclusive() -> None:
+    wildcard = ExpectedStateTransition(
+        resource="ticket",
+        any_resource_id=True,
+        to_status="created",
+        reason_code="ticket_created",
+    )
+    assert wildcard.resource_id is None
+
+    with pytest.raises(ValidationError, match="cannot also declare"):
+        ExpectedStateTransition(
+            resource="ticket",
+            resource_id=uuid4(),
+            any_resource_id=True,
+            to_status="created",
+            reason_code="ticket_created",
+        )
+    with pytest.raises(ValidationError, match="must declare a resource id"):
+        ExpectedStateTransition(
+            resource="ticket",
+            to_status="created",
+            reason_code="ticket_created",
+        )
+    with pytest.raises(ValidationError, match="only for a newly created ticket"):
+        ExpectedStateTransition(
+            resource="order",
+            any_resource_id=True,
+            from_status="delivered",
+            to_status="refunded",
+            reason_code="refund_executed",
+        )
+
+
+def test_dynamic_ticket_permissions_use_stable_explicit_wildcards() -> None:
+    for scenario_id in (
+        "phase2-04-wrong-tool-arguments",
+        "phase2-05-unconfirmed-refund",
+    ):
+        scenario = SCENARIO_BY_ID[scenario_id]
+        ticket = next(
+            transition
+            for transition in scenario.expected_behavior.permitted_state_transitions
+            if transition.resource == "ticket"
+        )
+        assert ticket.any_resource_id is True
+        assert ticket.resource_id is None
 
 
 def test_content_hash_is_stable_and_content_sensitive() -> None:

@@ -3,10 +3,9 @@
 The runner loads one validated bundle, reconstructs the safe request and the
 synthetic state, provisions a disposable environment, runs the real hosted
 model and the real agent workflow against the real support services and
-PostgreSQL sandbox, applies approved fixtures and fault scripts, captures
+PostgreSQL sandbox, applies approved fault scripts, captures
 the final state and the normalized transcript, and destroys or rolls back
-the environment. Retention is rejected until a retention manager exists,
-because a retained environment would be an unreachable open transaction.
+the environment.
 The run result distinguishes reproduced behavior, accepted behavior, failed
 behavior, unexpected access, and missing coverage, and the runner returns
 safe typed errors for invalid bundles, missing coverage, environment
@@ -37,7 +36,7 @@ from app.domain.agent.schemas import (
     SupportResponse,
 )
 from app.domain.bundle.errors import MissingCoverageError
-from app.domain.bundle.schemas import SimulationBundle, fixtures_by_dependency, resources_by_type
+from app.domain.bundle.schemas import SimulationBundle, resources_by_type
 from app.domain.comparison.evaluators import (
     ALL_EVALUATORS,
     Evaluator,
@@ -50,7 +49,6 @@ from app.domain.simulation.adapters import (
     DependencyAdapter,
     SimulationAdapterRegistry,
     StateMutation,
-    normalize_arguments,
     requirement_is_covered,
 )
 from app.domain.simulation.errors import (
@@ -60,7 +58,6 @@ from app.domain.simulation.errors import (
     MalformedResponseError,
     MissingSimulationCoverageError,
     ModelRunError,
-    RetentionUnavailableError,
     UnsupportedArgumentsError,
     UnsupportedStateError,
     UnsupportedToolError,
@@ -74,10 +71,7 @@ from app.domain.simulation.events import (
 from app.domain.simulation.provisioner import (
     EnvironmentRequest,
     ProvisionerFactory,
-    RetentionInfo,
-    RetentionRequest,
 )
-from app.domain.simulation.recorded import RecordedProviderResponse, RecordedReadAdapter
 from app.domain.simulation.schemas import SimulationScenario, SimulationState
 from app.domain.support.schemas import (
     OrderRead,
@@ -146,7 +140,6 @@ class SimulationRun(BaseModel):
     retries: int = Field(default=0, ge=0)
     tool_calls: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
-    retention: RetentionInfo | None = None
     completed_at: str = Field(min_length=1, max_length=100)
 
 
@@ -360,38 +353,6 @@ def _verdict(
     return RunVerdict.FAILED
 
 
-async def _recorded_adapters_from_bundle(
-    bundle: SimulationBundle,
-) -> tuple[RecordedReadAdapter, ...]:
-    """This function builds recorded adapters from the bundle fixtures.
-
-    Recorded fixtures never replace the owned database: fixtures for
-    ``support.database`` are rejected before any adapter is built.
-    """
-    if any(fixture.dependency == _OWNED_DATABASE for fixture in bundle.dependency_fixtures):
-        raise InvalidSimulationBundleError(
-            detail=(
-                "recorded fixtures must not replace support.database; owned-system "
-                "state must use stateful environment seeds"
-            )
-        )
-    adapters: list[RecordedReadAdapter] = []
-    for dependency, fixtures in fixtures_by_dependency(bundle).items():
-        captured: dict[str, dict[str, dict[str, object]]] = {}
-        for fixture in fixtures:
-            key = normalize_arguments(fixture.arguments)
-            captured.setdefault(fixture.tool, {})[key] = {
-                "payload": fixture.payload,
-                "error_code": fixture.error_code,
-                "malformed": fixture.malformed,
-            }
-        tools = tuple(sorted(captured))
-        adapter = RecordedProviderResponse(dependency, tools)
-        await adapter.sanitize(captured)
-        adapters.append(adapter)
-    return tuple(adapters)
-
-
 def _metrics_for(
     metrics: _Metrics,
     response: SupportResponse | None,
@@ -449,7 +410,12 @@ def _reject_unreachable_dependencies(
         )
     for fixture in bundle.dependency_fixtures:
         if fixture.dependency == _OWNED_DATABASE:
-            continue
+            raise InvalidSimulationBundleError(
+                detail=(
+                    "recorded fixtures must not replace support.database; owned-system "
+                    "state must use stateful environment seeds"
+                )
+            )
         raise InvalidSimulationBundleError(
             detail=(
                 f"recorded fixtures for dependency {fixture.dependency!r} cannot "
@@ -484,7 +450,6 @@ async def run_bundle(
     provisioner_factory: ProvisionerFactory,
     model_config: ModelConfig,
     collector: SimulationEventCollector | None = None,
-    retention: RetentionRequest | None = None,
     answer_instructions: str = ANSWER_INSTRUCTIONS,
     answer_instructions_version: str | None = None,
     tools_override: tuple[str, ...] | None = None,
@@ -494,21 +459,12 @@ async def run_bundle(
 
     The bundle must already be validated. The provisioner factory receives
     the reconstructed scenario, the bundle fault script, and the event sink.
-    The environment is always destroyed or rolled back; retention requests
-    are rejected before provisioning until a retention manager exists.
-    Errors are safe typed errors.
+    The environment is always destroyed or rolled back. Errors are safe
+    typed errors.
     """
     if bundle.bundle_id is None or bundle.content_hash is None:
         raise InvalidSimulationBundleError(
             detail="bundle has no derived identifier or content hash"
-        )
-    if retention is not None:
-        raise RetentionUnavailableError(
-            detail=(
-                "no retention manager exists yet; a retained environment would be "
-                "an unreachable open transaction that could leak a database session. "
-                "Destroy the environment after the run instead."
-            )
         )
     collector = collector or SimulationEventCollector()
     try:
@@ -520,7 +476,6 @@ async def run_bundle(
     _reject_invalid_fault_boundary(bundle)
     _reject_unreachable_dependencies(scenario, bundle)
 
-    recorded = await _recorded_adapters_from_bundle(bundle)
     provisioner = provisioner_factory(
         EnvironmentRequest(
             scenario=scenario,
@@ -529,12 +484,7 @@ async def run_bundle(
         )
     )
 
-    registry = SimulationAdapterRegistry(
-        (
-            cast(DependencyAdapter, provisioner),
-            *(cast(DependencyAdapter, adapter) for adapter in recorded),
-        )
-    )
+    registry = SimulationAdapterRegistry((cast(DependencyAdapter, provisioner),))
     missing = tuple(
         requirement.dependency
         for requirement in scenario.required_dependency_coverage
@@ -557,7 +507,6 @@ async def run_bundle(
     total_latency_ms: float | None = None
     mutations: tuple[StateMutation, ...] = ()
     final_state: SimulationState | None = None
-    retention_info: RetentionInfo | None = None
     report: EvaluatorReport | None = None
     verdict: RunVerdict | None = None
     errors: tuple[str, ...] = ()
@@ -651,12 +600,15 @@ async def run_bundle(
             ),
         )
     finally:
-        pending = sys.exc_info()[0]
+        pending = sys.exc_info()[1]
         try:
             await provisioner.destroy()
         except Exception as error:
             if pending is None:
                 raise CleanupRunError(detail=str(error)) from error
+            cleanup_failure = CleanupRunError(detail=str(error))
+            pending.add_note(f"cleanup_failure: {cleanup_failure.message}")
+            setattr(pending, "cleanup_failure", cleanup_failure)
 
     if final_state is None or report is None or verdict is None:
         raise EnvironmentRunError(detail="the environment did not produce a final state")
@@ -685,6 +637,5 @@ async def run_bundle(
         retries=metrics.retries,
         tool_calls=tuple(metrics.tool_calls),
         errors=errors,
-        retention=retention_info,
         completed_at=datetime.now(UTC).isoformat(),
     )

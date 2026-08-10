@@ -2,16 +2,19 @@
 
 import copy
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import delete
+from sqlalchemy import text
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.agent.errors import AgentError
 from app.domain.agent.service import SupportAgentService
 from app.domain.simulation.adapters import AdapterKind, DependencyCallResult, StateMutation
 from app.domain.simulation.errors import (
+    EnvironmentRunError,
     UnsupportedArgumentsError,
     UnsupportedStateError,
     UnsupportedToolError,
@@ -26,6 +29,79 @@ from app.telemetry.recorder import TraceRecorder
 
 _REFUND_EXECUTED = "refund_executed"
 _TICKET_CREATED = "ticket_created"
+
+_TEMPORARY_SUPPORT_TABLES = (
+    """
+    CREATE TEMPORARY TABLE customers (
+        id UUID PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        email VARCHAR(320) NOT NULL UNIQUE
+    ) ON COMMIT DROP
+    """,
+    """
+    CREATE TEMPORARY TABLE orders (
+        id UUID PRIMARY KEY,
+        customer_id UUID NOT NULL REFERENCES customers(id),
+        status VARCHAR(20) NOT NULL DEFAULT 'pending'
+            CHECK (status IN ('pending', 'processing', 'shipped', 'delivered',
+                              'cancelled', 'refunded')),
+        total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0)
+    ) ON COMMIT DROP
+    """,
+    """
+    CREATE TEMPORARY TABLE tickets (
+        id UUID PRIMARY KEY,
+        customer_id UUID NOT NULL REFERENCES customers(id),
+        order_id UUID REFERENCES orders(id),
+        subject VARCHAR(300) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'open'
+            CHECK (status IN ('open', 'in_progress', 'resolved', 'closed'))
+    ) ON COMMIT DROP
+    """,
+    """
+    CREATE TEMPORARY TABLE policy_documents (
+        id UUID PRIMARY KEY,
+        slug VARCHAR(100) NOT NULL,
+        version VARCHAR(20) NOT NULL,
+        title VARCHAR(200) NOT NULL,
+        content TEXT NOT NULL,
+        content_hash VARCHAR(64) NOT NULL,
+        UNIQUE (slug, version)
+    ) ON COMMIT DROP
+    """,
+)
+
+
+@dataclass(frozen=True)
+class PostgresSandboxTarget:
+    """Identify the approved test database that a sandbox may replace."""
+
+    host: str
+    port: int
+    database: str
+    role: str
+
+    @classmethod
+    def from_database_url(
+        cls,
+        database_url: str,
+        *,
+        environment: str,
+    ) -> "PostgresSandboxTarget":
+        """Build a target only from an explicit test-environment configuration."""
+        if environment != "test":
+            raise ValueError("PostgreSQL sandbox provisioning requires ENVIRONMENT=test")
+        url = make_url(database_url)
+        if url.get_backend_name() != "postgresql":
+            raise ValueError("PostgreSQL sandbox provisioning requires a PostgreSQL URL")
+        if not url.host or not url.database or not url.username:
+            raise ValueError("PostgreSQL sandbox URL must include host, database, and role")
+        return cls(
+            host=url.host.casefold(),
+            port=url.port or 5432,
+            database=url.database,
+            role=url.username,
+        )
 
 
 class ObservedSupportRepository:
@@ -140,12 +216,16 @@ class PostgresSupportSandbox:
         scenario: SimulationScenario,
         *,
         isolation_confirmed: bool,
+        target: PostgresSandboxTarget,
         mutation_listener: Callable[[StateMutation], None] | None = None,
     ) -> None:
         if not isolation_confirmed:
             raise ValueError("PostgreSQL sandbox seeding requires an isolated database")
         self._session = session
         self._scenario = scenario
+        self._target = target
+        self._target_verified = False
+        self._temporary_tables_ready = False
         self._initial: SimulationState | None = None
         self._observed_repository = ObservedSupportRepository(
             SqlAlchemySupportRepository(session),
@@ -179,8 +259,43 @@ class PostgresSupportSandbox:
                 dependency=self.dependency_name,
                 detail="the seed must be a SimulationState",
             )
+        await self.verify_target()
         self._initial = state.model_copy(deep=True)
         await self._replace_database_state(self._initial)
+
+    async def verify_target(self) -> None:
+        """Verify the target and isolate support SQL in temporary tables."""
+        if self._target_verified:
+            return
+        bind = self._session.get_bind()
+        url = bind.url if isinstance(bind, Engine) else bind.engine.url
+        if (
+            (url.host or "").casefold() != self._target.host
+            or (url.port or 5432) != self._target.port
+        ):
+            raise EnvironmentRunError(
+                detail="the session host does not match the approved sandbox target"
+            )
+        row = (
+            await self._session.execute(
+                text("SELECT current_database() AS database_name, current_user AS role_name")
+            )
+        ).one()
+        if row.database_name != self._target.database or row.role_name != self._target.role:
+            raise EnvironmentRunError(
+                detail="the server database or role does not match the approved sandbox target"
+            )
+        await self._prepare_temporary_tables()
+        self._target_verified = True
+
+    async def _prepare_temporary_tables(self) -> None:
+        """Create session-local support tables and forbid public-table fallback."""
+        if self._temporary_tables_ready:
+            return
+        for statement in _TEMPORARY_SUPPORT_TABLES:
+            await self._session.execute(text(statement))
+        await self._session.execute(text("SET LOCAL search_path TO pg_temp"))
+        self._temporary_tables_ready = True
 
     async def reset(self) -> None:
         """Restore the exact approved state in the isolated PostgreSQL database."""
@@ -320,10 +435,10 @@ class PostgresSupportSandbox:
             )
 
     async def _replace_database_state(self, state: SimulationState) -> None:
-        await self._session.execute(delete(Ticket))
-        await self._session.execute(delete(Order))
-        await self._session.execute(delete(PolicyDocument))
-        await self._session.execute(delete(Customer))
+        self._session.expunge_all()
+        await self._session.execute(
+            text("TRUNCATE TABLE tickets, orders, policy_documents, customers")
+        )
 
         customer_ids = {self._scenario.request.customer_id}
         customer_ids.update(order.customer_id for order in state.orders)

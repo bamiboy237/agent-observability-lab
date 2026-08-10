@@ -13,3 +13,8 @@ wheels/
 .env
 .env.*
 !.env.example
+
+# Local operating-system and generated review files
+.DS_Store
+*.svg
+graphify-out/

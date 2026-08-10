@@ -80,10 +80,6 @@ def test_event_allowlist_covers_every_streamed_attribute() -> None:
     samples = {
         kinds.ENVIRONMENT_CREATED: {"environment.id": "e1"},
         kinds.ENVIRONMENT_SEEDED: {"seed.orders": 2},
-        kinds.ENVIRONMENT_RETAINED: {
-            "environment.retention.reason": "review",
-            "environment.retention.expires_at": "2026-08-10T00:00:00Z",
-        },
         kinds.ENVIRONMENT_DESTROYED: {"environment.id": "e1"},
         kinds.MODEL_REQUEST: {"model.provider": "openai", "model.name": "gpt-5.2"},
         kinds.MODEL_RESPONSE: {

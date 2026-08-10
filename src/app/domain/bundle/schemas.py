@@ -22,6 +22,7 @@ from app.domain.bundle.allowlist import (
     scan_bundle_content,
     validate_fault_script,
     validate_metadata_content,
+    validate_resource_seed,
 )
 from app.domain.evidence.schemas import TraceSourceRef
 from app.domain.simulation.faults import FaultScript
@@ -89,6 +90,13 @@ class EnvironmentResourceSeed(BaseModel):
     adapter_name: str = Field(min_length=1, max_length=200)
     adapter_version: str = Field(min_length=1, max_length=50)
     records: tuple[dict[str, object], ...] = ()
+
+    @model_validator(mode="after")
+    def validate_records(self) -> "EnvironmentResourceSeed":
+        """This method rejects incomplete or invalid records at the bundle boundary."""
+        for record in self.records:
+            validate_resource_seed(self.resource, record)
+        return self
 
 
 class ConfigurationVersions(BaseModel):

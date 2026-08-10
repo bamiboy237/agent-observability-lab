@@ -29,8 +29,6 @@ SIMULATION_EVENT_ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "seed.orders",
         "seed.tickets",
         "seed.policies",
-        "environment.retention.reason",
-        "environment.retention.expires_at",
         # Model request and response metadata
         "model.provider",
         "model.name",
@@ -90,7 +88,6 @@ class SimulationEventKind(StrEnum):
 
     ENVIRONMENT_CREATED = "environment.created"
     ENVIRONMENT_SEEDED = "environment.seeded"
-    ENVIRONMENT_RETAINED = "environment.retained"
     ENVIRONMENT_DESTROYED = "environment.destroyed"
     MODEL_REQUEST = "model.request"
     MODEL_RESPONSE = "model.response"

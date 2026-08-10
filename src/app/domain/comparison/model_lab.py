@@ -43,7 +43,7 @@ class ModelCaseOutcome(BaseModel):
     verdict: RunVerdict
     task_success: bool
     total_latency_ms: float | None = None
-    tokens: int = 0
+    tokens: int | None = Field(default=None, ge=0)
     cost_usd: float | None = None
     retries: int = 0
     tool_calls: tuple[str, ...] = ()
@@ -76,6 +76,9 @@ class ModelSideTotals(BaseModel):
     total_latency_ms: float = 0.0
     average_latency_ms: float = 0.0
     total_tokens: int = 0
+    latency_measurements: int = 0
+    token_measurements: int = 0
+    cost_measurements: int = 0
     total_retries: int = 0
     tool_use: dict[str, int] = Field(default_factory=dict)
     policy_outcomes: dict[str, int] = Field(default_factory=dict)
@@ -157,9 +160,14 @@ def _evaluator_failed(run: SimulationRun, evaluator: str) -> bool:
 
 def _side_totals(outcomes: Sequence[ModelCaseOutcome]) -> ModelSideTotals:
     successes = sum(1 for outcome in outcomes if outcome.task_success)
+    latency_measurements = sum(
+        1 for outcome in outcomes if outcome.total_latency_ms is not None
+    )
+    token_measurements = sum(1 for outcome in outcomes if outcome.tokens is not None)
+    cost_measurements = sum(1 for outcome in outcomes if outcome.cost_usd is not None)
     total_cost = sum(outcome.cost_usd or 0.0 for outcome in outcomes)
     total_latency = sum(outcome.total_latency_ms or 0.0 for outcome in outcomes)
-    total_tokens = sum(outcome.tokens for outcome in outcomes)
+    total_tokens = sum(outcome.tokens or 0 for outcome in outcomes)
     total_retries = sum(outcome.retries for outcome in outcomes)
     tool_use: dict[str, int] = {}
     for outcome in outcomes:
@@ -177,8 +185,13 @@ def _side_totals(outcomes: Sequence[ModelCaseOutcome]) -> ModelSideTotals:
         total_cost=round(total_cost, 6),
         cost_per_successful_task=(round(total_cost / successes, 6) if successes else None),
         total_latency_ms=round(total_latency, 2),
-        average_latency_ms=round(total_latency / len(outcomes), 2) if outcomes else 0.0,
+        average_latency_ms=(
+            round(total_latency / latency_measurements, 2) if latency_measurements else 0.0
+        ),
         total_tokens=total_tokens,
+        latency_measurements=latency_measurements,
+        token_measurements=token_measurements,
+        cost_measurements=cost_measurements,
         total_retries=total_retries,
         tool_use=dict(sorted(tool_use.items())),
         policy_outcomes=dict(sorted(policy_outcomes.items())),
@@ -228,6 +241,27 @@ def _recommendation(
         )
     baseline = totals.baseline
     candidate = totals.candidate
+    if baseline.success_count == 0 and candidate.success_count == 0:
+        return (
+            ModelLabVerdict.INCONCLUSIVE,
+            "neither model completed a successful task; there is no successful behavior to compare",
+        )
+    missing: list[str] = []
+    for name, measured in (
+        ("baseline latency", baseline.latency_measurements),
+        ("candidate latency", candidate.latency_measurements),
+        ("baseline tokens", baseline.token_measurements),
+        ("candidate tokens", candidate.token_measurements),
+        ("baseline cost", baseline.cost_measurements),
+        ("candidate cost", candidate.cost_measurements),
+    ):
+        if measured < comparable:
+            missing.append(name)
+    if missing:
+        return (
+            ModelLabVerdict.INCONCLUSIVE,
+            f"missing measurements for {', '.join(missing)}; no model recommendation",
+        )
     if candidate.success_rate < baseline.success_rate:
         return (
             ModelLabVerdict.KEEP_BASELINE,
@@ -365,7 +399,7 @@ async def run_model_lab(
                 verdict=run.verdict,
                 task_success=success,
                 total_latency_ms=run.total_latency_ms,
-                tokens=run.total_tokens,
+                tokens=run.total_tokens if run.total_tokens > 0 else None,
                 cost_usd=run.cost_usd,
                 retries=run.retries,
                 tool_calls=run.tool_calls,

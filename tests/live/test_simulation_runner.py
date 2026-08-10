@@ -100,6 +100,7 @@ async def _stream_timeline(collector: SimulationEventCollector) -> list:
 
 async def test_live_simulation_reproduces_the_order_case(
     live_runner_model: ModelConfig,
+    live_runner_settings: Settings,
 ) -> None:
     before = await _stored_snapshot()
     scenario_id = "phase2-08-model-cost-comparison"
@@ -128,6 +129,8 @@ async def test_live_simulation_reproduces_the_order_case(
         bundle=bundle,
         provisioner_factory=postgres_provisioner_factory(
             lambda: get_session_factory()(),
+            database_url=str(live_runner_settings.database_url),
+            environment=live_runner_settings.environment,
             isolation_confirmed=True,
         ),
         model_config=live_runner_model,

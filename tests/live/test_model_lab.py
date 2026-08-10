@@ -67,6 +67,7 @@ def live_lab_models(live_lab_settings: Settings) -> tuple[ModelConfig, ModelConf
 
 async def test_live_model_lab_compares_baseline_and_candidate(
     live_lab_models: tuple[ModelConfig, ModelConfig],
+    live_lab_settings: Settings,
 ) -> None:
     baseline_model, candidate_model = live_lab_models
     scenario_id = "phase2-08-model-cost-comparison"
@@ -94,6 +95,8 @@ async def test_live_model_lab_compares_baseline_and_candidate(
         candidate_model_config=candidate_model,
         provisioner_factory=postgres_provisioner_factory(
             lambda: get_session_factory()(),
+            database_url=str(live_lab_settings.database_url),
+            environment=live_lab_settings.environment,
             isolation_confirmed=True,
         ),
         min_comparable_cases=1,

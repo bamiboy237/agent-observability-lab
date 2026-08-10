@@ -98,6 +98,31 @@ def _measured(value: float | None, digits: int = 2) -> str:
     return f"{value:.{digits}f}"
 
 
+def _token_measurement(run: SimulationRun) -> int | None:
+    """Return measured token usage, keeping an unreported default distinct."""
+    return run.total_tokens if run.total_tokens > 0 else None
+
+
+def _validate_run_identity(
+    run: SimulationRun,
+    bundle: SimulationBundle,
+    *,
+    side: str,
+) -> None:
+    mismatches: list[str] = []
+    if run.bundle_id != bundle.bundle_id:
+        mismatches.append("bundle_id")
+    if run.bundle_content_hash != bundle.content_hash:
+        mismatches.append("bundle_content_hash")
+    if run.scenario_id != bundle.scenario.scenario_id:
+        mismatches.append("scenario_id")
+    if mismatches:
+        raise ValueError(
+            f"{side} run does not belong to the supplied bundle: "
+            f"mismatched {', '.join(mismatches)}"
+        )
+
+
 def _deltas(
     baseline: SimulationRun,
     candidate: SimulationRun,
@@ -185,12 +210,14 @@ def _deltas(
             regression=False,
         )
     )
+    baseline_tokens = _token_measurement(baseline)
+    candidate_tokens = _token_measurement(candidate)
     deltas.append(
         CriterionDelta(
             criterion="tokens",
-            baseline=str(baseline.total_tokens),
-            candidate=str(candidate.total_tokens),
-            changed=baseline.total_tokens != candidate.total_tokens,
+            baseline=str(baseline_tokens) if baseline_tokens is not None else "none",
+            candidate=str(candidate_tokens) if candidate_tokens is not None else "none",
+            changed=baseline_tokens != candidate_tokens,
             regression=False,
         )
     )
@@ -217,6 +244,9 @@ def _missing_measurements(
     if budgets.max_cost_usd is not None:
         if baseline.cost_usd is None or candidate.cost_usd is None:
             missing.append("estimated cost")
+    if budgets.max_tokens is not None:
+        if _token_measurement(baseline) is None or _token_measurement(candidate) is None:
+            missing.append("token usage")
     return tuple(missing)
 
 
@@ -238,6 +268,8 @@ def compare_runs(
     """
     if bundle.bundle_id is None or bundle.content_hash is None:
         raise ValueError("bundle has no derived identifier or content hash")
+    _validate_run_identity(baseline, bundle, side="baseline")
+    _validate_run_identity(candidate, bundle, side="candidate")
     deltas = _deltas(baseline, candidate, bundle)
     blocked: list[str] = []
     regressions: list[str] = []

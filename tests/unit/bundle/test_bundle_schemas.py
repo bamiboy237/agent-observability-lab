@@ -10,7 +10,7 @@ fields, unapproved reviews, and identifiers that do not match the content.
 import pytest
 from pydantic import ValidationError
 
-from app.domain.bundle.errors import ForbiddenDataError
+from app.domain.bundle.errors import ForbiddenDataError, InvalidBundleFixtureError
 from app.domain.bundle.extract import synthetic_id
 from app.domain.bundle.schemas import (
     BundleRequest,
@@ -120,6 +120,50 @@ def test_bundle_rejects_forbidden_resource_seed() -> None:
         }
     ]
     with pytest.raises(ForbiddenDataError, match="api_key"):
+        SimulationBundle.model_validate(payload)
+
+
+def test_resource_seed_rejects_missing_required_field_before_running() -> None:
+    payload = _bundle().model_dump(mode="json")
+    payload["resource_seeds"] = [
+        {
+            "resource": "order",
+            "adapter_name": "support.database",
+            "adapter_version": "4.0.0",
+            "records": [
+                {
+                    "customer_id": "e693cb4c-98a7-5d3d-bd7a-1c0c554ab528",
+                    "status": "delivered",
+                    "total_amount": "48.25",
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(InvalidBundleFixtureError, match=r"missing fields \['id'\]"):
+        SimulationBundle.model_validate(payload)
+
+
+def test_resource_seed_rejects_invalid_status_before_running() -> None:
+    payload = _bundle().model_dump(mode="json")
+    payload["resource_seeds"] = [
+        {
+            "resource": "ticket",
+            "adapter_name": "support.database",
+            "adapter_version": "4.0.0",
+            "records": [
+                {
+                    "id": "11111111-1111-4111-8111-111111111111",
+                    "customer_id": "e693cb4c-98a7-5d3d-bd7a-1c0c554ab528",
+                    "order_id": None,
+                    "subject": "Review the approved synthetic order.",
+                    "status": "unknown",
+                }
+            ],
+        }
+    ]
+
+    with pytest.raises(InvalidBundleFixtureError, match=r"invalid or missing fields \['status'\]"):
         SimulationBundle.model_validate(payload)
 
 

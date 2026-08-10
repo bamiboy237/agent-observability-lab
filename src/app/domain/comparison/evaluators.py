@@ -43,7 +43,7 @@ class RunMetrics(BaseModel):
     retries: int = 0
     total_latency_ms: float | None = None
     model_latency_ms: float | None = None
-    tokens: int = 0
+    tokens: int | None = Field(default=None, ge=0)
     cost_usd: float | None = None
     mutations: tuple[StateMutation, ...] = ()
     policy_grounded: bool | None = None
@@ -192,7 +192,20 @@ def _matches_permitted(
     mutation: StateMutation,
     transition: ExpectedStateTransition,
 ) -> bool:
-    if mutation.resource != transition.resource or mutation.reason_code != transition.reason_code:
+    expected_field = (
+        "created"
+        if transition.resource == "ticket" and transition.reason_code == _TICKET_CREATED
+        else "status"
+    )
+    if (
+        mutation.resource != transition.resource
+        or (
+            not transition.any_resource_id
+            and mutation.resource_id != str(transition.resource_id)
+        )
+        or mutation.field != expected_field
+        or mutation.reason_code != transition.reason_code
+    ):
         return False
     if transition.from_status is not None and mutation.before != transition.from_status:
         return False
@@ -355,6 +368,12 @@ def _check_tokens(bundle: SimulationBundle, metrics: RunMetrics) -> EvaluatorRes
     budget = bundle.expected_behavior.budgets.max_tokens
     if budget is None:
         return _pass("tokens", "no token budget is declared for this scenario")
+    if metrics.tokens is None or metrics.tokens == 0:
+        return _fail(
+            "tokens",
+            f"the scenario declares a {budget} token budget, but the run did not "
+            "record token usage",
+        )
     if metrics.tokens > budget:
         return _fail(
             "tokens",

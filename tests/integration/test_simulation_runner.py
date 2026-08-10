@@ -48,6 +48,16 @@ REVIEW = {
 MODEL_CONFIG = ModelConfig(provider="openai", name="gpt-5.2")
 
 
+def _postgres_factory():
+    settings = Settings()  # type: ignore[call-arg]
+    return postgres_provisioner_factory(
+        lambda: get_session_factory()(),
+        database_url=str(settings.database_url),
+        environment=settings.environment,
+        isolation_confirmed=True,
+    )
+
+
 @pytest.fixture(scope="module", autouse=True)
 def apply_migrations() -> None:
     try:
@@ -98,10 +108,7 @@ async def test_runner_runs_the_real_workflow_against_postgres_and_rolls_back(
 
     run = await run_bundle(
         bundle=bundle,
-        provisioner_factory=postgres_provisioner_factory(
-            lambda: get_session_factory()(),
-            isolation_confirmed=True,
-        ),
+        provisioner_factory=_postgres_factory(),
         model_config=MODEL_CONFIG,
     )
 
@@ -132,10 +139,7 @@ async def test_runner_reproduces_the_timeout_case_against_postgres(
 
     run = await run_bundle(
         bundle=bundle,
-        provisioner_factory=postgres_provisioner_factory(
-            lambda: get_session_factory()(),
-            isolation_confirmed=True,
-        ),
+        provisioner_factory=_postgres_factory(),
         model_config=MODEL_CONFIG,
     )
 
@@ -180,10 +184,7 @@ async def test_runner_records_a_real_refund_mutation_against_postgres(
 
     run = await run_bundle(
         bundle=bundle,
-        provisioner_factory=postgres_provisioner_factory(
-            lambda: get_session_factory()(),
-            isolation_confirmed=True,
-        ),
+        provisioner_factory=_postgres_factory(),
         model_config=MODEL_CONFIG,
     )
 

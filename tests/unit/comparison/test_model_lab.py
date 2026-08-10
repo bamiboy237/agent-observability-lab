@@ -22,6 +22,7 @@ from app.domain.comparison.model_lab import (
     MIN_COMPARABLE_CASES,
     ModelLabTotals,
     ModelLabVerdict,
+    ModelSideTotals,
     _recommendation,
     run_model_lab,
 )
@@ -156,19 +157,25 @@ def test_recommendation_rejects_candidate_with_regressions() -> None:
 
 
 def test_recommendation_keeps_baseline_for_expensive_equivalent_candidate() -> None:
-    totals = __import__(
-        "app.domain.comparison.model_lab", fromlist=["ModelLabTotals"]
-    ).ModelLabTotals(
+    totals = ModelLabTotals(
         comparable_cases=4,
-        baseline=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.04, cost_per_successful_task=0.01
+        baseline=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.04,
+            cost_per_successful_task=0.01,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
-        candidate=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.12, cost_per_successful_task=0.03
+        candidate=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.12,
+            cost_per_successful_task=0.03,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
     )
     verdict, reason = _recommendation(totals, MIN_COMPARABLE_CASES)
@@ -177,19 +184,25 @@ def test_recommendation_keeps_baseline_for_expensive_equivalent_candidate() -> N
 
 
 def test_recommendation_keeps_baseline_for_lower_quality_candidate() -> None:
-    totals = __import__(
-        "app.domain.comparison.model_lab", fromlist=["ModelLabTotals"]
-    ).ModelLabTotals(
+    totals = ModelLabTotals(
         comparable_cases=4,
-        baseline=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.04, cost_per_successful_task=0.01
+        baseline=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.04,
+            cost_per_successful_task=0.01,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
-        candidate=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=2, success_rate=0.5, total_cost=0.03, cost_per_successful_task=0.015
+        candidate=ModelSideTotals(
+            success_count=2,
+            success_rate=0.5,
+            total_cost=0.03,
+            cost_per_successful_task=0.015,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
     )
     verdict, _ = _recommendation(totals, MIN_COMPARABLE_CASES)
@@ -197,19 +210,25 @@ def test_recommendation_keeps_baseline_for_lower_quality_candidate() -> None:
 
 
 def test_recommendation_chooses_cheaper_equivalent_candidate() -> None:
-    totals = __import__(
-        "app.domain.comparison.model_lab", fromlist=["ModelLabTotals"]
-    ).ModelLabTotals(
+    totals = ModelLabTotals(
         comparable_cases=4,
-        baseline=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.04, cost_per_successful_task=0.01
+        baseline=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.04,
+            cost_per_successful_task=0.01,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
-        candidate=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.02, cost_per_successful_task=0.005
+        candidate=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.02,
+            cost_per_successful_task=0.005,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
     )
     verdict, _ = _recommendation(totals, MIN_COMPARABLE_CASES)
@@ -217,23 +236,73 @@ def test_recommendation_chooses_cheaper_equivalent_candidate() -> None:
 
 
 def test_recommendation_is_inconclusive_when_models_are_equivalent() -> None:
-    totals = __import__(
-        "app.domain.comparison.model_lab", fromlist=["ModelLabTotals"]
-    ).ModelLabTotals(
+    totals = ModelLabTotals(
         comparable_cases=4,
-        baseline=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.04, cost_per_successful_task=0.01
+        baseline=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.04,
+            cost_per_successful_task=0.01,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
-        candidate=__import__(
-            "app.domain.comparison.model_lab", fromlist=["ModelSideTotals"]
-        ).ModelSideTotals(
-            success_count=4, success_rate=1.0, total_cost=0.04, cost_per_successful_task=0.01
+        candidate=ModelSideTotals(
+            success_count=4,
+            success_rate=1.0,
+            total_cost=0.04,
+            cost_per_successful_task=0.01,
+            latency_measurements=4,
+            token_measurements=4,
+            cost_measurements=4,
         ),
     )
     verdict, _ = _recommendation(totals, MIN_COMPARABLE_CASES)
     assert verdict is ModelLabVerdict.INCONCLUSIVE
+
+
+def test_recommendation_is_inconclusive_when_both_models_have_no_successes() -> None:
+    totals = ModelLabTotals(
+        comparable_cases=3,
+        baseline=ModelSideTotals(
+            latency_measurements=3,
+            token_measurements=3,
+            cost_measurements=3,
+        ),
+        candidate=ModelSideTotals(
+            latency_measurements=3,
+            token_measurements=3,
+            cost_measurements=3,
+        ),
+    )
+    verdict, reason = _recommendation(totals, MIN_COMPARABLE_CASES)
+    assert verdict is ModelLabVerdict.INCONCLUSIVE
+    assert "neither model" in reason
+
+
+def test_recommendation_is_inconclusive_when_measurements_are_missing() -> None:
+    totals = ModelLabTotals(
+        comparable_cases=3,
+        baseline=ModelSideTotals(
+            success_count=3,
+            success_rate=1.0,
+            latency_measurements=3,
+            token_measurements=3,
+            cost_measurements=3,
+            cost_per_successful_task=0.01,
+        ),
+        candidate=ModelSideTotals(
+            success_count=3,
+            success_rate=1.0,
+            latency_measurements=3,
+            token_measurements=2,
+            cost_measurements=3,
+            cost_per_successful_task=0.005,
+        ),
+    )
+    verdict, reason = _recommendation(totals, MIN_COMPARABLE_CASES)
+    assert verdict is ModelLabVerdict.INCONCLUSIVE
+    assert "candidate tokens" in reason
 
 
 def test_empty_cohort_is_inconclusive() -> None:

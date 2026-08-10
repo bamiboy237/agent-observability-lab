@@ -88,7 +88,7 @@ def make_metrics(
     tool_errors: tuple[str, ...] = (),
     retries: int = 0,
     total_latency_ms: float | None = 100.0,
-    tokens: int = 100,
+    tokens: int | None = 100,
     cost_usd: float | None = 0.01,
     mutations: tuple[StateMutation, ...] = (),
     policy_grounded: bool | None = None,
@@ -377,6 +377,109 @@ def test_unexpected_state_changes_pass_when_mutation_is_permitted() -> None:
     )
     report = run_evaluators(bundle, make_metrics(mutations=(mutation,)))
     assert results_by_name(report)["unexpected_state_changes"] is True
+
+
+def test_unexpected_state_changes_require_the_permitted_resource_id() -> None:
+    permitted = ExpectedStateTransition(
+        resource="order",
+        resource_id=uuid4(),
+        from_status="delivered",
+        to_status="refunded",
+        reason_code="refund_executed",
+    )
+    mutation = StateMutation(
+        sequence=1,
+        resource="order",
+        resource_id=str(uuid4()),
+        field="status",
+        before="delivered",
+        after="refunded",
+        reason_code="refund_executed",
+    )
+    report = run_evaluators(
+        make_bundle(permitted=(permitted,)),
+        make_metrics(mutations=(mutation,)),
+    )
+    assert results_by_name(report)["unexpected_state_changes"] is False
+
+
+def test_unexpected_state_changes_require_the_expected_field() -> None:
+    order_id = uuid4()
+    permitted = ExpectedStateTransition(
+        resource="order",
+        resource_id=order_id,
+        from_status="delivered",
+        to_status="refunded",
+        reason_code="refund_executed",
+    )
+    mutation = StateMutation(
+        sequence=1,
+        resource="order",
+        resource_id=str(order_id),
+        field="total_amount",
+        before="100.00",
+        after="0.00",
+        reason_code="refund_executed",
+    )
+    report = run_evaluators(
+        make_bundle(permitted=(permitted,)),
+        make_metrics(mutations=(mutation,)),
+    )
+    assert results_by_name(report)["unexpected_state_changes"] is False
+
+
+def test_explicit_resource_id_wildcard_allows_a_created_ticket() -> None:
+    permitted = ExpectedStateTransition(
+        resource="ticket",
+        any_resource_id=True,
+        to_status="created",
+        reason_code="ticket_created",
+    )
+    mutation = StateMutation(
+        sequence=1,
+        resource="ticket",
+        resource_id=str(uuid4()),
+        field="created",
+        before=None,
+        after={"status": "open"},
+        reason_code="ticket_created",
+    )
+    report = run_evaluators(
+        make_bundle(permitted=(permitted,)),
+        make_metrics(mutations=(mutation,)),
+    )
+    assert results_by_name(report)["unexpected_state_changes"] is True
+
+
+def test_resource_id_wildcard_does_not_allow_another_field() -> None:
+    permitted = ExpectedStateTransition(
+        resource="ticket",
+        any_resource_id=True,
+        to_status="created",
+        reason_code="ticket_created",
+    )
+    mutation = StateMutation(
+        sequence=1,
+        resource="ticket",
+        resource_id=str(uuid4()),
+        field="status",
+        before="open",
+        after="closed",
+        reason_code="ticket_created",
+    )
+    report = run_evaluators(
+        make_bundle(permitted=(permitted,)),
+        make_metrics(mutations=(mutation,)),
+    )
+    assert results_by_name(report)["unexpected_state_changes"] is False
+
+
+def test_token_budget_fails_when_usage_was_not_measured() -> None:
+    bundle = make_bundle(budgets=SimulationBudgets(max_tokens=500))
+    report = run_evaluators(bundle, make_metrics(tokens=None))
+    result = next(result for result in report.results if result.evaluator == "tokens")
+    assert result.passed is False
+    assert "did not record token usage" in result.reason
 
 
 def test_unexpected_state_changes_fail_on_other_state_with_permits() -> None:

@@ -48,7 +48,11 @@ def test_resource_seed_rejects_credentials() -> None:
 def test_customer_seed_accepts_approved_synthetic_fields() -> None:
     validate_resource_seed(
         "customer",
-        {"id": "x", "name": "customer-abc", "email": "customer-abc@example.invalid"},
+        {
+            "id": "e693cb4c-98a7-5d3d-bd7a-1c0c554ab528",
+            "name": "customer-abc",
+            "email": "customer-abc@example.invalid",
+        },
     )
 
 
@@ -178,7 +182,14 @@ def test_scan_rejects_forbidden_value_part() -> None:
     with pytest.raises(ForbiddenDataError, match="forbidden value"):
         scan_bundle_content(
             resources={
-                "order": [{"id": "x", "customer_id": "y", "status": "s", "total_amount": "1"}]
+                "order": [
+                    {
+                        "id": "e5afa83a-25c7-5b71-98bb-b8eae0d188c0",
+                        "customer_id": "e693cb4c-98a7-5d3d-bd7a-1c0c554ab528",
+                        "status": "delivered",
+                        "total_amount": "1",
+                    }
+                ]
             },
             fixtures=[
                 {"type": "recorded_response", "tool": "t", "arguments": {}, "payload": "sk-abc123"}

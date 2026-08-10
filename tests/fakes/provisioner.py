@@ -2,13 +2,12 @@
 
 This provisioner substitutes for the PostgreSQL sandbox the same way the
 stateful support adapter substitutes for the database in Phase 4 unit tests:
-it runs the same contract (create, seed, connect, retain, destroy, final
+it runs the same contract (create, seed, connect, destroy, final
 state, mutations) against an in-memory repository so runner tests stay fast
 and offline. Full runs use the PostgreSQL provisioner.
 """
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from app.domain.simulation.adapters import AdapterKind, StateMutation
@@ -19,8 +18,6 @@ from app.domain.simulation.postgres import ObservedSupportRepository
 from app.domain.simulation.provisioner import (
     EnvironmentRequest,
     ProvisionerFactory,
-    RetentionInfo,
-    RetentionRequest,
     SupportEnvironmentProvisioner,
     mutation_event_attributes,
 )
@@ -42,17 +39,18 @@ class StatefulSupportProvisioner:
         fault_script: FaultScript | None = None,
         event_sink: SimulationEventSink | None = None,
         boundary_error: SimulationError | None = None,
+        destroy_error: Exception | None = None,
     ) -> None:
         self.environment_id = uuid4().hex
         self._scenario = scenario
         self._fault_script = fault_script
         self._sink = event_sink
         self._boundary_error = boundary_error
+        self._destroy_error = destroy_error
         self._repository: InMemorySupportRepository | None = None
         self._observed: ObservedSupportRepository | None = None
         self._created = False
         self._destroyed = False
-        self._retention: RetentionInfo | None = None
         self._initial: SimulationState | None = None
 
     @property
@@ -116,31 +114,10 @@ class StatefulSupportProvisioner:
             repository = _RejectingRepository(self._observed, self._boundary_error)
         return repository
 
-    def retain(self, request: RetentionRequest) -> RetentionInfo:
-        retained_at = datetime.now(UTC)
-        info = RetentionInfo(
-            environment_id=self.environment_id,
-            reason=request.reason,
-            retained_at=retained_at.isoformat(),
-            expires_at=(retained_at + timedelta(hours=request.ttl_hours)).isoformat(),
-        )
-        self._retention = info
-        self._emit(
-            SimulationEventKind.ENVIRONMENT_RETAINED,
-            {
-                "environment.id": self.environment_id,
-                "environment.retention.reason": info.reason,
-                "environment.retention.expires_at": info.expires_at,
-            },
-        )
-        return info
-
-    @property
-    def retention(self) -> RetentionInfo | None:
-        return self._retention
-
     async def destroy(self) -> None:
         self._destroyed = True
+        if self._destroy_error is not None:
+            raise self._destroy_error
         self._emit(
             SimulationEventKind.ENVIRONMENT_DESTROYED,
             {"environment.id": self.environment_id},
@@ -218,6 +195,7 @@ class _RejectingRepository:
 def stateful_provisioner_factory(
     *,
     boundary_error: SimulationError | None = None,
+    destroy_error: Exception | None = None,
 ) -> ProvisionerFactory:
     """This function builds a factory for the in-memory test provisioner."""
 
@@ -227,6 +205,7 @@ def stateful_provisioner_factory(
             fault_script=request.fault_script,
             event_sink=request.sink,
             boundary_error=boundary_error,
+            destroy_error=destroy_error,
         )
 
     return build

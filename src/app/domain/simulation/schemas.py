@@ -74,15 +74,39 @@ class SimulationBudgets(BaseModel):
 
 
 class ExpectedStateTransition(BaseModel):
-    """This class declares one accepted business-state transition."""
+    """This class declares one accepted business-state transition.
+
+    ``any_resource_id`` is an explicit contract for resources whose identifier
+    is created during the run. It relaxes only the identifier match; resource,
+    field, statuses, and reason code remain exact.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     resource: str = Field(pattern=r"^(order|ticket)$")
-    resource_id: UUID
+    resource_id: UUID | None = None
+    any_resource_id: bool = False
     from_status: str | None = Field(default=None, max_length=50)
     to_status: str = Field(min_length=1, max_length=50)
     reason_code: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+
+    @model_validator(mode="after")
+    def validate_resource_id_contract(self) -> "ExpectedStateTransition":
+        """Require either one concrete identifier or the explicit wildcard."""
+        if self.any_resource_id and self.resource_id is not None:
+            raise ValueError("a wildcard transition cannot also declare a resource id")
+        if not self.any_resource_id and self.resource_id is None:
+            raise ValueError("a transition must declare a resource id or any_resource_id=true")
+        if self.any_resource_id and (
+            self.resource != "ticket"
+            or self.reason_code != "ticket_created"
+            or self.from_status is not None
+            or self.to_status != "created"
+        ):
+            raise ValueError(
+                "any_resource_id is allowed only for a newly created ticket"
+            )
+        return self
 
 
 class ExpectedBehavior(BaseModel):

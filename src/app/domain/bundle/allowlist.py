@@ -13,7 +13,10 @@ simulation adapters, so the two privacy rules cannot diverge.
 
 from collections.abc import Mapping, Sequence
 
-from app.domain.bundle.errors import ForbiddenDataError
+from pydantic import BaseModel, ValidationError
+
+from app.domain.bundle.errors import ForbiddenDataError, InvalidBundleFixtureError
+from app.domain.support.schemas import CustomerRead, OrderRead, PolicyDocumentRead, TicketRead
 
 # Canonical sensitive key parts shared with the recorded simulation adapters.
 SENSITIVE_KEY_PARTS: tuple[str, ...] = (
@@ -41,6 +44,13 @@ RESOURCE_ALLOWLIST: Mapping[str, frozenset[str]] = {
     "order": frozenset({"id", "customer_id", "status", "total_amount"}),
     "ticket": frozenset({"id", "customer_id", "order_id", "subject", "status"}),
     "policy": frozenset({"id", "slug", "version", "title", "content", "content_hash"}),
+}
+
+_RESOURCE_RECORD_MODELS: Mapping[str, type[BaseModel]] = {
+    "customer": CustomerRead,
+    "order": OrderRead,
+    "ticket": TicketRead,
+    "policy": PolicyDocumentRead,
 }
 
 FORBIDDEN_VALUE_PARTS: tuple[str, ...] = (
@@ -127,7 +137,13 @@ def validate_resource_seed(
     *,
     forbidden_substrings: Sequence[str] = (),
 ) -> None:
-    """This function validates one owned-system resource seed record."""
+    """This function validates one owned-system resource seed record.
+
+    The allowlist controls which fields may enter a bundle. The matching
+    support-domain model also requires the complete record shape and validates
+    identifiers, statuses, amounts, and field lengths before the runner can
+    reconstruct the state.
+    """
     allowed = RESOURCE_ALLOWLIST.get(resource)
     if allowed is None:
         raise ForbiddenDataError(detail=f"unknown resource type {resource!r}")
@@ -137,6 +153,19 @@ def validate_resource_seed(
         context=f"resource {resource!r}",
         forbidden_substrings=forbidden_substrings,
     )
+    record_model = _RESOURCE_RECORD_MODELS[resource]
+    try:
+        record_model.model_validate(record)
+    except ValidationError as exc:
+        invalid_fields = sorted(
+            {
+                str(error["loc"][0]) if error["loc"] else "record"
+                for error in exc.errors(include_input=False)
+            }
+        )
+        raise InvalidBundleFixtureError(
+            detail=f"resource {resource!r} has invalid or missing fields {invalid_fields!r}"
+        ) from exc
 
 
 def validate_fixture_payload(

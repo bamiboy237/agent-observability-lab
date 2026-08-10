@@ -10,11 +10,15 @@ and its source evidence.
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+import pytest
+
 from app.domain.agent.schemas import ReasonCode, RouteIntent, SupportOutcome, SupportResponse
 from app.domain.bundle.schemas import SimulationBundle
 from app.domain.comparison.compare import (
     ComparisonVerdict,
-    compare_runs,
+)
+from app.domain.comparison.compare import (
+    compare_runs as compare_runs_unbound,
 )
 from app.domain.comparison.evaluators import EvaluatorReport
 from app.domain.simulation.runner import RunVerdict, SimulationRun
@@ -83,6 +87,7 @@ def make_run(
 def make_bundle(
     *,
     budget_ms: int | None = None,
+    max_tokens: int | None = None,
 ) -> SimulationBundle:
     return SimulationBundle(
         scenario={
@@ -104,7 +109,10 @@ def make_bundle(
         expected_behavior=ExpectedBehavior(
             outcome=SupportOutcome.COMPLETED,
             reason_codes=(ReasonCode.ORDER_STATUS_OK,),
-            budgets=SimulationBudgets(performance_budget_ms=budget_ms),
+            budgets=SimulationBudgets(
+                performance_budget_ms=budget_ms,
+                max_tokens=max_tokens,
+            ),
         ),
         review={
             "status": "approved",
@@ -112,6 +120,24 @@ def make_bundle(
             "reviewed_at": "2026-08-08T00:00:00Z",
             "reason": "approved",
         },
+    )
+
+
+def compare_runs(
+    baseline: SimulationRun,
+    candidate: SimulationRun,
+    bundle: SimulationBundle,
+):
+    """Bind test runs to the supplied bundle before exercising comparison behavior."""
+    identity = {
+        "bundle_id": bundle.bundle_id,
+        "bundle_content_hash": bundle.content_hash,
+        "scenario_id": bundle.scenario.scenario_id,
+    }
+    return compare_runs_unbound(
+        baseline.model_copy(update=identity),
+        candidate.model_copy(update=identity),
+        bundle,
     )
 
 
@@ -209,6 +235,38 @@ def test_missing_required_measurement_blocks_candidate_passes() -> None:
     result = compare_runs(make_run(), candidate, bundle)
     assert result.verdict is ComparisonVerdict.INSUFFICIENT_EVIDENCE
     assert any("missing required measurement" in reason for reason in result.blocked_reasons)
+
+
+def test_missing_token_measurement_blocks_a_declared_token_budget() -> None:
+    bundle = make_bundle(max_tokens=500)
+    candidate = make_run().model_copy(update={"total_tokens": 0})
+    result = compare_runs(make_run(), candidate, bundle)
+    assert result.verdict is ComparisonVerdict.INSUFFICIENT_EVIDENCE
+    assert any("token usage" in reason for reason in result.blocked_reasons)
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong_value"),
+    (
+        ("bundle_id", UUID(int=99)),
+        ("bundle_content_hash", "f" * 64),
+        ("scenario_id", "phase2-98-other-case"),
+    ),
+)
+def test_comparison_rejects_a_run_from_another_bundle(
+    field: str,
+    wrong_value: object,
+) -> None:
+    bundle = make_bundle()
+    identity = {
+        "bundle_id": bundle.bundle_id,
+        "bundle_content_hash": bundle.content_hash,
+        "scenario_id": bundle.scenario.scenario_id,
+    }
+    baseline = make_run().model_copy(update=identity)
+    candidate = make_run().model_copy(update={**identity, field: wrong_value})
+    with pytest.raises(ValueError, match=f"candidate.*{field}"):
+        compare_runs_unbound(baseline, candidate, bundle)
 
 
 def test_uncomparable_run_means_insufficient_evidence() -> None:

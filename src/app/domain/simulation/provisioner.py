@@ -2,10 +2,8 @@
 
 A provisioner creates one disposable copy of the owned systems that a
 simulation needs, seeds it from approved state, connects the real application
-to it, and destroys or rolls it back. Retention stays part of the contract
-but is rejected until a retention manager exists, because a retained
-transaction would otherwise become an unreachable open session. The reference
-implementation provisions an isolated PostgreSQL environment that runs the
+to it, and destroys or rolls it back. The reference implementation provisions
+an isolated PostgreSQL environment that runs the
 real support services, repository, validation, policy rules, and SQL inside
 one transaction that the run rolls back.
 """
@@ -15,15 +13,14 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction
 
 from app.domain.simulation.adapters import AdapterKind, DependencyCallResult, StateMutation
-from app.domain.simulation.errors import EnvironmentRunError, RetentionUnavailableError
+from app.domain.simulation.errors import EnvironmentRunError
 from app.domain.simulation.events import SimulationEventKind, SimulationEventSink
 from app.domain.simulation.faults import FaultInjectingRepository, FaultScript
-from app.domain.simulation.postgres import PostgresSupportSandbox
+from app.domain.simulation.postgres import PostgresSandboxTarget, PostgresSupportSandbox
 from app.domain.simulation.schemas import SimulationScenario, SimulationState
 from app.domain.support.models import Order, PolicyDocument, Ticket
 from app.domain.support.repository import SupportRepository
@@ -33,39 +30,12 @@ SessionFactory = Callable[[], AsyncSession]
 Scalar = bool | int | float | str
 
 
-class RetentionRequest(BaseModel):
-    """This class requests time-limited retention of a run environment."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    reason: str = Field(min_length=1, max_length=500)
-    ttl_hours: int = Field(ge=1, le=168)
-
-
-class RetentionInfo(BaseModel):
-    """This class records the retention metadata of one run environment.
-
-    Retention is explicit and time-limited. No retention manager exists yet:
-    the runner and the reference provisioner reject retention requests, so
-    this record cannot be produced today. It stays defined so a later phase
-    can add the manager without changing the contract.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    environment_id: str = Field(min_length=1, max_length=200)
-    reason: str = Field(min_length=1, max_length=500)
-    retained_at: str = Field(min_length=1, max_length=100)
-    expires_at: str = Field(min_length=1, max_length=100)
-
-
 @runtime_checkable
 class EnvironmentProvisioner(Protocol):
     """This protocol defines the minimum operations of every provisioner.
 
     ``create`` builds the isolated environment, ``seed`` loads the approved
     disposable state, ``connect`` returns the connected dependency handle,
-    ``retain`` records explicit time-limited retention metadata, and
     ``destroy`` tears the environment down or rolls it back. ``final_state``
     captures the disposable state after a run and ``mutations`` reports the
     accepted state mutations.
@@ -79,8 +49,6 @@ class EnvironmentProvisioner(Protocol):
     async def seed(self, state: object) -> None: ...
 
     def connect(self) -> object: ...
-
-    def retain(self, request: RetentionRequest) -> RetentionInfo: ...
 
     async def destroy(self) -> None: ...
 
@@ -118,6 +86,8 @@ ProvisionerFactory = Callable[[EnvironmentRequest], SupportEnvironmentProvisione
 def postgres_provisioner_factory(
     session_factory: SessionFactory,
     *,
+    database_url: str,
+    environment: str,
     isolation_confirmed: bool,
 ) -> ProvisionerFactory:
     """This function builds the reference PostgreSQL provisioner factory.
@@ -126,11 +96,17 @@ def postgres_provisioner_factory(
     and event sink, so runs never share a transaction or environment.
     """
 
+    target = PostgresSandboxTarget.from_database_url(
+        database_url,
+        environment=environment,
+    )
+
     def build(request: EnvironmentRequest) -> SupportEnvironmentProvisioner:
         return PostgresSandboxProvisioner(
             session_factory,
             request.scenario,
             isolation_confirmed=isolation_confirmed,
+            target=target,
             fault_script=request.fault_script,
             event_sink=request.sink,
         )
@@ -173,9 +149,7 @@ class PostgresSandboxProvisioner:
     Seeding replaces the transaction's rows with the approved synthetic
     state, the agent runs against the real services and repository inside the
     transaction, and ``destroy`` rolls the transaction back so the database
-    is unchanged. Retention is refused until a retention manager exists,
-    because a retained transaction would otherwise become an unreachable
-    open session.
+    is unchanged.
     """
 
     dependency_name = "support.database"
@@ -187,6 +161,7 @@ class PostgresSandboxProvisioner:
         scenario: SimulationScenario,
         *,
         isolation_confirmed: bool,
+        target: PostgresSandboxTarget,
         fault_script: FaultScript | None = None,
         event_sink: SimulationEventSink | None = None,
     ) -> None:
@@ -197,7 +172,7 @@ class PostgresSandboxProvisioner:
         self._session: AsyncSession | None = None
         self._transaction: AsyncSessionTransaction | None = None
         self._sandbox: PostgresSupportSandbox | None = None
-        self._retention: RetentionInfo | None = None
+        self._target = target
         self.environment_id = uuid4().hex
         if not isolation_confirmed:
             raise ValueError("PostgreSQL sandbox provisioning requires an isolated database")
@@ -214,8 +189,24 @@ class PostgresSandboxProvisioner:
             session,
             self._scenario,
             isolation_confirmed=True,
+            target=self._target,
             mutation_listener=self._on_mutation,
         )
+        try:
+            await sandbox.verify_target()
+        except Exception as error:
+            self._session = None
+            self._transaction = None
+            try:
+                await transaction.rollback()
+            except Exception as cleanup_error:
+                error.add_note(f"sandbox verification rollback failed: {cleanup_error}")
+            finally:
+                try:
+                    await session.close()
+                except Exception as cleanup_error:
+                    error.add_note(f"sandbox verification session close failed: {cleanup_error}")
+            raise
         self._sandbox = sandbox
         self._emit(SimulationEventKind.ENVIRONMENT_CREATED, {"environment.id": self.environment_id})
 
@@ -260,21 +251,6 @@ class PostgresSandboxProvisioner:
                 event_sink=self._sink,
             )
         return repository
-
-    def retain(self, request: RetentionRequest) -> RetentionInfo:
-        """This method refuses retention until a retention manager exists.
-
-        Keeping this environment's transaction open without a manager that
-        can retrieve and destroy it would leak a database session at expiry,
-        so the request is rejected instead of being recorded.
-        """
-        raise RetentionUnavailableError(
-            detail=(
-                "no retention manager exists yet; a retained environment would be "
-                "an unreachable open transaction that could leak a database "
-                "session. Destroy the environment after the run instead."
-            )
-        )
 
     async def destroy(self) -> None:
         """This method rolls back the disposable transaction."""

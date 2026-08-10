@@ -9,7 +9,7 @@ changing the expectation.
 
 import hashlib
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from app.domain.agent.schemas import ReasonCode, RouteIntent, SupportOutcome, SupportRequest
 from app.domain.agent.service import TOOLS_BY_INTENT
@@ -263,7 +263,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
             permitted=(
                 ExpectedStateTransition(
                     resource="ticket",
-                    resource_id=uuid4(),
+                    any_resource_id=True,
                     to_status="created",
                     reason_code="ticket_created",
                 ),
@@ -311,7 +311,7 @@ SCENARIOS: tuple[SimulationScenario, ...] = (
                 ),
                 ExpectedStateTransition(
                     resource="ticket",
-                    resource_id=uuid4(),
+                    any_resource_id=True,
                     to_status="created",
                     reason_code="ticket_created",
                 ),
