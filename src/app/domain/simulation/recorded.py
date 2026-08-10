@@ -11,6 +11,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from app.domain.bundle.allowlist import SENSITIVE_KEY_PARTS
 from app.domain.simulation.adapters import (
     AdapterKind,
     DependencyCallResult,
@@ -23,20 +24,6 @@ from app.domain.simulation.errors import (
     UnsupportedToolError,
 )
 from app.domain.simulation.schemas import SimulationState
-
-_SENSITIVE_PARTS = (
-    "api_key",
-    "secret",
-    "password",
-    "token",
-    "authorization",
-    "credential",
-    "credit",
-    "ssn",
-    "email",
-    "phone",
-    "message",
-)
 
 
 @dataclass(frozen=True)
@@ -52,7 +39,7 @@ def _contains_sensitive_key(value: object) -> bool:
     if isinstance(value, dict):
         for key, nested in value.items():
             lowered = str(key).lower()
-            if any(part in lowered for part in _SENSITIVE_PARTS):
+            if any(part in lowered for part in SENSITIVE_KEY_PARTS):
                 return True
             if _contains_sensitive_key(nested):
                 return True
