@@ -339,59 +339,7 @@ def _interactive(args: argparse.Namespace, live: bool) -> bool:
     return live and not args.yes and sys.stdin.isatty()
 
 
-def _choose_view(console: Console) -> str:
-    """Choose the live renderer once setup is ready to execute.
 
-    The choice is intentionally a renderer choice, not a second run mode:
-    both views consume the same plugin, event stream, persistence, and
-    cleanup path.
-    """
-    console.print(
-        Panel(
-            Text(
-                "Watch the run as a compact event spine, or keep a fast terminal timeline.\n"
-                "Both views show the same live events and finish with the same report.",
-                style="dim",
-            ),
-            title=" LIVE VIEW ",
-            subtitle=" choose a surface ",
-            border_style="cyan",
-            width=_console_width(console),
-        )
-    )
-    choice = Prompt.ask(
-        "live view",
-        choices=["rich", "textual"],
-        default="textual",
-        console=console,
-    )
-    return choice
-
-
-def _resolve_view(
-    args: argparse.Namespace,
-    *,
-    interactive: bool,
-    use_live: bool,
-    console: Console,
-) -> str:
-    """Resolve one explicit or interactive renderer selection."""
-    requested: str | None = cast("str | None", getattr(args, "view", None))
-    if getattr(args, "tui", False):
-        if requested is not None and requested != "textual":
-            _fail(
-                "view_conflict",
-                "--tui selects the Textual view; remove --view rich or choose --view textual",
-                args=args,
-            )
-        requested = "textual"
-    if requested is not None:
-        return requested
-    if not use_live:
-        return "plain"
-    if interactive:
-        return _choose_view(console)
-    return "rich"
 
 
 def _build_catalog(
@@ -717,6 +665,21 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
     interactive = _interactive(args, use_live)
     console = Console(highlight=False, no_color=not use_live)
 
+    # Default: open the interactive TUI workbench.
+    # Programmatic mode requires an explicit simulation_id, --yes, or --json.
+    programmatic = (
+        getattr(args, "simulation_id", None)
+        or getattr(args, "yes", False)
+        or getattr(args, "json", False)
+    )
+    if not programmatic and use_live and sys.stdout.isatty():
+        from app.cli.textual_simulate import run_interactive_workbench
+
+        workbench_result = await run_interactive_workbench(catalog, registry)
+        if workbench_result is not None:
+            _print_final(workbench_result, args, use_live)
+        return EXIT_OK
+
     scenario: Scenario | None = None
     if args.simulation_id:
         try:
@@ -826,21 +789,7 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
                 print(f"  - {issue}", file=sys.stderr)
         return EXIT_ERROR
 
-    view = _resolve_view(
-        args,
-        interactive=interactive,
-        use_live=use_live,
-        console=console,
-    )
-    use_tui = view == "textual"
-    if use_tui and not use_live:
-        _fail(
-            "tui_requires_terminal",
-            "the Textual view needs an interactive terminal; omit --view or use "
-            "--no-live for plain output",
-            args=args,
-        )
-    sink = None if use_tui else _build_sink(plugin.metadata, args, use_live)
+    sink = _build_sink(plugin.metadata, args, use_live)
     request = FlowRunRequest(
         case_id=scenario.plugin_id,
         max_turns=effective.max_turns,
@@ -853,17 +802,7 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
     )
     args._sink = sink
     args._artifact_root = profile.artifact_root
-    if use_tui:
-        from app.cli.textual_simulate import run_textual_simulator
-
-        result = await run_textual_simulator(
-            plugin,
-            request,
-            scenario_name=scenario.name or plugin.metadata.name,
-            profile_label=profile.label,
-        )
-    else:
-        result = await plugin.run(request)
+    result = await plugin.run(request)
     _print_final(result, args, use_live)
     return EXIT_OK
 
@@ -1020,7 +959,7 @@ def build_simulate_parser(
         default=argparse.SUPPRESS,
         help="print stable structured output",
     )
-    sub = parser.add_subparsers(dest="simulate_command", required=True)
+    sub = parser.add_subparsers(dest="simulate_command", required=False)
 
     run = sub.add_parser("run", help="guided setup + preflight + live run")
     run.add_argument("simulation_id", nargs="?", help="simulation id (see list)")
@@ -1038,22 +977,17 @@ def build_simulate_parser(
         "--no-live", action="store_true", help="plain one-line events even on a terminal"
     )
     run.add_argument(
-        "--tui",
-        action="store_true",
-        help="open the full-screen Textual workspace (compatibility alias for --view textual)",
-    )
-    run.add_argument(
-        "--view",
-        choices=("rich", "textual"),
-        default=None,
-        help="select the live view; interactive runs ask when omitted",
-    )
-    run.add_argument(
         "--json", action="store_true", default=argparse.SUPPRESS,
         help="print stable structured output",
     )
     run.set_defaults(
         func=cmd_simulate, registry=registry, simulate_command="run"
+    )
+    parser.set_defaults(
+        func=cmd_simulate, registry=registry, simulate_command="run",
+        simulation_id=None, profile=None, max_turns=None,
+        persona=None, script=None, goal=None, yes=False,
+        no_live=False,
     )
 
     listing = sub.add_parser("list", help="grouped catalog listing")

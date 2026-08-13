@@ -1,134 +1,76 @@
-# Repository agent instructions
+# Repository Guidelines
 
-## Purpose
+## User Updates
 
-Build **Simulate**: a system that continuously evaluates and improves agentic
-workflows.
+Treat the user as a product manager who needs clear, short progress updates.
 
-The core loop is:
+- Send a short update before you start work.
+- For work that takes more than one minute, send another update at least every 60 seconds.
+- State the goal, the work you completed, why it matters, and your next step.
+- Use plain English. Avoid jargon and unexplained technical terms.
+- Do not use terms such as "smoke test," "config guarded," "load bearing," or "core" without explanation.
+- Replace technical labels with direct descriptions of what the system does.
+- Keep each update to two to four short sentences unless the user asks for more detail.
+- Do not paste raw logs. Summarize the result and include only useful error details.
+- State clearly when you make an assumption, encounter a problem, or need user input.
+- At completion, report the changed files, checks that passed, checks that you skipped, and any remaining risk.
 
-```text
-production traces
-  -> behavior insights
-  -> human-approved YAML scenarios
-  -> isolated repeated experiments
-  -> neutral evidence
-```
+## Project Structure & Module Organization
 
-Simulate reports experiment results. It does not recommend a deployment.
+Application code lives in `src/app/`. Put FastAPI routes in `src/app/api/` and
+business rules in `src/app/domain/`. Store migrations in `alembic/versions/`
+and operational scripts in `scripts/`.
 
-## Authority
+Use `tests/unit/` for pure behavior, `tests/integration/` for PostgreSQL-backed
+behavior, and `tests/fakes/` for focused test doubles. Read `BUILD_ROADMAP.md`
+before product work and preserve its phase boundaries.
 
-- Read `BUILD_ROADMAP.md` before product, architecture, phase, or interface work.
-- Treat `BUILD_ROADMAP.md` as the source of truth for product language, approved
-  scope, phase order, contracts, UI references, and future work.
-- Read `docs/user-simulator.md` before changing simulator CLI or terminal
-  behavior.
-- Treat tests and code as the source of truth for current implemented behavior.
-- If roadmap and code differ, state the difference. Do not present planned work
-  as implemented work.
+## Build, Test, and Development Commands
 
-Do not create another strategy, architecture, upstream-pattern, or future-work
-Markdown file. Add durable product decisions to `BUILD_ROADMAP.md`. Add a small
-operational document only when a user must follow a separate procedure.
+- `uv sync --frozen` installs the locked Python 3.12 environment.
+- `uv run alembic upgrade head` applies database migrations.
+- `uv run python scripts/seed.py` loads idempotent support fixtures.
+- `uv run uvicorn app.main:create_app --factory` starts the local API.
+- `uv run ruff check .` checks formatting and imports.
+- `uv run mypy src` runs strict type checking.
+- `uv run pytest tests/unit -q` runs fast offline tests.
+- `uv run pytest` runs the full suite against an isolated database.
 
-## Current boundary
+Run migration and integration tests only against disposable PostgreSQL or an
+isolated Neon branch.
 
-- Phases 0–7 are complete on `main` through `f31c438`.
-- Phase 8 is next and is not implemented.
-- Do not implement Phase 8 or a later phase without explicit user approval.
-- Do not expand the MVP with automatic deployment, automatic remediation,
-  speculative roles, a new web application, or partial experiment recovery.
+## Coding Style & Naming Conventions
 
-## Product language
+Use four-space indentation, complete type annotations, and a 100-character
+line limit. Ruff enforces `E`, `F`, and `I`; mypy is strict. Use `snake_case`
+for modules and functions, `PascalCase` for classes, and
+`test_<observable_behavior>` for tests. Keep routes thin. Enforce authorization,
+policy, confirmation, and state transitions in domain services—not prompts.
 
-- Product name: **Simulate**.
-- Tagline: **Continuously evaluate and improve agentic workflows.**
-- Say **behavior insight**, not **failure cluster**, in new product surfaces.
-- Say **simulate**, not **replay**, as the primary verb.
-- A **scenario** is a human-approved YAML contract.
-- An **experiment** compares a baseline with one or more candidates through
-  repeated, controlled iterations.
-- A **result** contains evidence and measurements. It does not contain a release
-  recommendation.
+## Testing Guidelines
 
-Do not mechanically rename stable older modules. Migrate public contracts in a
-reviewable checkpoint and keep compatibility where required.
+Use pytest and `pytest-asyncio`. Add only tests needed at a stable
+boundary. Python unit tests may mock the hosted-model boundary to verify
+behavior and parsing without network calls. Keep mocks small and specific to
+the test; do not create a production workflow around a fake model. Live and
+end-to-end agent checks must use the real hosted
+model. Credential-gated model and telemetry tests must skip when
+settings are absent.
 
-## Engineering rules
+## Commit & Pull Request Guidelines
 
-1. Prefer one execution path. Put workflow differences in versioned data or
-   contracts.
-2. Use the standard library, the framework, or an existing dependency before a
-   new abstraction or dependency.
-3. Keep domain rules in services and contracts. Keep API, CLI, Rich, Textual,
-   and future web code as clients of the same behavior.
-4. Keep trace ingestion, scenario construction, execution, evaluation, and
-   presentation separate.
-5. Treat a trace as evidence, not as approved state or expected behavior.
-6. Require explicit human approval before publishing generated YAML or starting
-   a Prime Agent experiment.
-7. Preserve exact scenario, code, image, model, prompt, tool, policy, fixture,
-   evaluator, and evidence versions.
-8. Use repeated and interleaved runs for stochastic comparisons.
-9. Report averages, spread, limits, and individual iterations. Do not hide them
-   behind one score.
-10. Keep cloud execution provider-neutral. Lab-managed and BYOVM runners must
-    implement the same contract.
-11. Use ephemeral compute, expiring leases, short-lived credentials, outbound
-    allowlists, and explicit cleanup.
-12. Keep Textual attached to the control-plane API, not directly to a runner VM.
-13. Plain JSON is the stable automation output.
-14. Do not claim deterministic, isolated, private, durable, remote, or safe
-    behavior without a focused test of that boundary.
+Follow the history’s short imperative style, such as `Add support HTTP API`.
+Keep commits scoped. Do not commit `.env`, secrets, caches, or unrelated files.
+Report changed files, checks, skipped live checks, and manual review steps;
+commit and push only after user confirmation.
 
-## Delivery workflow
+Pull requests must explain behavior, risk, configuration or migration impact,
+and verification. Include screenshots only for visible UI changes. Link the
+roadmap phase or issue when one exists.
 
-For each meaningful change:
+## Security & Configuration
 
-1. identify the current behavior and its consumers;
-2. separate observed facts, likely causes, proposals, and unknowns;
-3. choose the smallest complete change;
-4. update code, callers, contracts, tests, and documentation together;
-5. run focused validation;
-6. run the broad practical quality gate before completion;
-7. record completed roadmap evidence without deleting known limitations.
-
-Preserve user changes in a dirty worktree. Do not perform a speculative rewrite.
-Do not add an abstraction only to remove repeated lines. Optimize for fewer
-concepts, fewer files, and one obvious path.
-
-## Quality gate
-
-Use the repository environment and run, at minimum:
-
-```bash
-uv run ruff check .
-uv run mypy src
-uv run pytest
-```
-
-Database integration tests require PostgreSQL. The complete sandbox check is:
-
-```bash
-docker compose --profile test run --rm test
-```
-
-State exactly which checks ran and which checks could not run.
-
-## Communication
-
-Use short, concrete sentences. Define a project-specific term before using it.
-For a defect, state:
-
-1. what the object is and who uses it;
-2. what should happen;
-3. what happens instead and under which conditions;
-4. one concrete example;
-5. what the user can observe;
-6. whether the cause is observed, likely, proposed, or unknown;
-7. the smallest permanent fix;
-8. one focused verification check.
-
-For progress, state the goal, completed work, why it matters, next step, and any
-blocker or risk. Follow ASD-STE100 Simplified Technical English where practical.
+Copy `.env.example` to `.env` and keep credentials local. Traces must use
+allowlisted attributes and must never contain secrets, unrestricted user text,
+or private database state. External model and observability integrations must
+remain optional and fail safely when incomplete.

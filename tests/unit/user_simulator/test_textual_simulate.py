@@ -5,14 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from textual.widgets import DataTable, Input, Label, Static
+from textual.widgets import Button, DataTable, Input, Label, Static
 
 from app.cli.textual_simulate import TextualSimulatorApp
 from app.domain.user_simulator.events import EventEmitter, EventKind, EventSource
 from app.domain.user_simulator.flows import (
     FlowMetadata,
+    FlowRegistry,
     FlowRunRequest,
     FlowRunResult,
+)
+from app.domain.user_simulator.manifests import (
+    EnvironmentProfile,
+    Scenario,
+    SimulationCatalog,
 )
 from app.domain.user_simulator.models import SimulatorReport
 
@@ -86,7 +92,7 @@ async def test_tui_runs_filters_inspects_and_returns_result() -> None:
 
         table = app.query_one("#timeline", DataTable)
         assert table.row_count == 5
-        assert str(app.query_one("#status", Label).render()) == "✓ VERIFIED"
+        assert str(app.query_one("#status", Label).render()) == "VERIFIED"
         assert str(app.query_one("#run-id", Static).render()) == "run-textual"
         assert app.query_one("#exit").display is True
         assert "artifacts/run-textual.json" in str(
@@ -142,3 +148,108 @@ async def test_tui_pause_buffers_the_view_and_narrow_layout_hides_rails() -> Non
         assert app.query_one("#paused").display is False
 
         await pilot.press("q")
+
+
+@pytest.mark.asyncio
+async def test_tui_category_filters_and_help_drawer() -> None:
+    app = _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause(0.2)
+        table = app.query_one("#timeline", DataTable)
+        assert table.row_count == 5
+
+        # Filter to dialog events (USER turn)
+        await pilot.press("2")
+        await pilot.pause()
+        assert table.row_count == 1
+        assert "DIALOG" in str(app.query_one("#category-bar", Static).render())
+
+        # Filter to tools events (TOOL_SELECTED, TOOL_RESULT)
+        await pilot.press("3")
+        await pilot.pause()
+        assert table.row_count == 2
+        assert "TOOLS" in str(app.query_one("#category-bar", Static).render())
+
+        # Reset to all
+        await pilot.press("1")
+        await pilot.pause()
+        assert table.row_count == 5
+
+        # Toggle help drawer
+        help_drawer = app.query_one("#help-drawer", Static)
+        assert help_drawer.display is False
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert help_drawer.display is True
+        assert "KEYBOARD SHORTCUTS" in str(help_drawer.render())
+
+        # Close help drawer
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert help_drawer.display is False
+
+        await pilot.press("q")
+
+
+@pytest.mark.asyncio
+async def test_interactive_workbench_configuration_and_launch() -> None:
+    plugin = _TextualFlow()
+    registry = FlowRegistry()
+    registry.register(plugin)
+
+    scenario = Scenario(
+        scenario_id="order-test",
+        plugin_id=plugin.metadata.flow_id,
+        group="support",
+        name="Order status test",
+        description="Verify order status lookup",
+        persona="Frustrated customer",
+        script="Where is my package?",
+        goal="Provide tracking number",
+        max_turns=5,
+        environment_profile="test-env",
+    )
+    profile = EnvironmentProfile(
+        profile_id="test-env",
+        label="Test Postgres",
+        environment="test",
+    )
+    catalog = SimulationCatalog(
+        scenarios=(scenario,),
+        profiles=(profile,),
+        issues=(),
+    )
+
+    app = TextualSimulatorApp(catalog=catalog, registry=registry)
+    async with app.run_test(size=(120, 35)) as pilot:
+        await pilot.pause(0.2)
+
+        # In configuration mode
+        assert app.query_one("#config-workspace").display is True
+        assert app.query_one("#workspace").display is False
+        assert app.query_one("#input-persona", Input).value == "Frustrated customer"
+        assert app.query_one("#input-turns", Input).value == "5"
+
+        # Edit turn count
+        turns_input = app.query_one("#input-turns", Input)
+        turns_input.value = "10"
+        await pilot.pause()
+        assert turns_input.value == "10"
+
+        # Click launch
+        btn = app.query_one("#btn-launch", Button)
+        btn.press()
+        await pilot.pause(0.3)
+
+        # Transitioned to live timeline
+        assert app.query_one("#config-workspace").display is False
+        assert app.query_one("#workspace").display is True
+        assert str(app.query_one("#status", Label).render()) == "VERIFIED"
+        assert app.query_one("#timeline", DataTable).row_count == 5
+
+        await pilot.press("q")
+
+    assert app.return_value is not None
+    assert app.return_value.report.verified_goal is True
+
+

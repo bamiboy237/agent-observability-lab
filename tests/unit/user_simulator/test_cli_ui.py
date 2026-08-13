@@ -6,7 +6,6 @@ new plugin appears in the chooser/listing and runs with zero CLI edits.
 
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 
@@ -301,59 +300,24 @@ def test_no_simulation_id_without_a_terminal_fails(catalog_dir: Path, capsys) ->
     assert "simulation_required" in capsys.readouterr().err
 
 
-def test_textual_mode_refuses_non_terminal_output(
-    catalog_dir: Path, monkeypatch, capsys
-) -> None:
+def test_bare_simulate_launches_workbench(catalog_dir: Path, monkeypatch) -> None:
     registry = _registry(_FakePlugin())
-    monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
+    workbench_called = False
 
-    with pytest.raises(SystemExit) as excinfo:
-        _run(["simulate", "run", FLOW_ID, "--tui"], registry, catalog_dir)
+    async def _fake_workbench(catalog, reg):
+        nonlocal workbench_called
+        workbench_called = True
+        return None
 
-    assert excinfo.value.code == 1
-    assert "tui_requires_terminal" in capsys.readouterr().err
-
-
-def test_interactive_run_chooses_a_renderer_when_no_view_is_given(monkeypatch) -> None:
-    args = argparse.Namespace(view=None, tui=False, json=False)
-    monkeypatch.setattr(simulate, "_choose_view", lambda console: "textual")
-
-    assert (
-        simulate._resolve_view(
-            args,
-            interactive=True,
-            use_live=True,
-            console=object(),  # type: ignore[arg-type]
-        )
-        == "textual"
-    )
-
-
-def test_explicit_renderer_and_tui_alias_bypass_the_chooser(monkeypatch) -> None:
     monkeypatch.setattr(
-        simulate,
-        "_choose_view",
-        lambda console: pytest.fail("explicit renderer must not prompt"),
+        "app.cli.textual_simulate.run_interactive_workbench", _fake_workbench
     )
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
-    assert (
-        simulate._resolve_view(
-            argparse.Namespace(view="rich", tui=False, json=False),
-            interactive=True,
-            use_live=True,
-            console=object(),  # type: ignore[arg-type]
-        )
-        == "rich"
-    )
-    assert (
-        simulate._resolve_view(
-            argparse.Namespace(view=None, tui=True, json=False),
-            interactive=True,
-            use_live=True,
-            console=object(),  # type: ignore[arg-type]
-        )
-        == "textual"
-    )
+    code = _run(["simulate"], registry, catalog_dir, live=True)
+    assert code == 0
+    assert workbench_called is True
 
 
 def test_keyboard_interrupt_exits_130(catalog_dir: Path, capsys, monkeypatch) -> None:

@@ -27,15 +27,16 @@ def test_list_commands_reject_unknown_operations(command: str) -> None:
     assert parser.parse_args([command, "list"]).func is not None
 
 
-def test_simulate_run_exposes_rich_and_textual_view_selection() -> None:
+def test_simulate_defaults_and_programmatic_flags() -> None:
     parser = build_parser()
 
-    rich = parser.parse_args(["simulate", "run", "phase2-03-database-timeout", "--view", "rich"])
-    textual = parser.parse_args(
-        ["simulate", "run", "phase2-03-database-timeout", "--view", "textual"]
-    )
-    alias = parser.parse_args(["simulate", "run", "phase2-03-database-timeout", "--tui"])
+    default_run = parser.parse_args(["simulate"])
+    assert default_run.simulate_command == "run"
+    assert default_run.simulation_id is None
 
-    assert rich.view == "rich"
-    assert textual.view == "textual"
-    assert alias.tui is True
+    explicit_run = parser.parse_args(
+        ["simulate", "run", "phase2-03-database-timeout", "--max-turns", "5", "--yes"]
+    )
+    assert explicit_run.simulation_id == "phase2-03-database-timeout"
+    assert explicit_run.max_turns == 5
+    assert explicit_run.yes is True
