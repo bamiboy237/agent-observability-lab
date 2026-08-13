@@ -152,9 +152,12 @@ class SimulationEventCollector:
     persisted transcript never diverge.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, subscriber_buffer: int = 256) -> None:
+        if subscriber_buffer < 1:
+            raise ValueError("subscriber_buffer must be at least 1")
         self._events: list[SimulationEvent] = []
         self._subscribers: list[asyncio.Queue[SimulationEvent]] = []
+        self._subscriber_buffer = subscriber_buffer
         self._started = perf_counter()
         self._sequence = 0
 
@@ -173,6 +176,8 @@ class SimulationEventCollector:
         )
         self._events.append(event)
         for queue in self._subscribers:
+            if queue.full():
+                queue.get_nowait()
             queue.put_nowait(event)
         return event
 
@@ -193,7 +198,9 @@ class SimulationEventCollector:
         turns true and the queue is drained, for example when the background
         run task that emits into this collector completes.
         """
-        queue: asyncio.Queue[SimulationEvent] = asyncio.Queue()
+        queue: asyncio.Queue[SimulationEvent] = asyncio.Queue(
+            maxsize=self._subscriber_buffer
+        )
         self._subscribers.append(queue)
         try:
             while True:

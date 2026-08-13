@@ -55,6 +55,42 @@ def test_persisted_transcript_matches_live_stream() -> None:
     asyncio.run(main())
 
 
+def test_slow_subscriber_is_bounded_while_transcript_stays_complete() -> None:
+    collector = SimulationEventCollector(subscriber_buffer=2)
+
+    async def main() -> None:
+        release = asyncio.Event()
+        finished = False
+        streamed: list[SimulationEvent] = []
+
+        async def watch() -> None:
+            async for event in collector.stream(until=lambda: finished):
+                streamed.append(event)
+                if len(streamed) == 1:
+                    await release.wait()
+
+        task = asyncio.create_task(watch())
+        await asyncio.sleep(0)
+        collector.emit(SimulationEventKind.ENVIRONMENT_CREATED)
+        await asyncio.sleep(0)
+        collector.emit(SimulationEventKind.MODEL_REQUEST)
+        collector.emit(SimulationEventKind.MODEL_RESPONSE)
+        collector.emit(SimulationEventKind.RUN_COMPLETED)
+        finished = True
+        release.set()
+        await task
+
+        assert [event.sequence for event in streamed] == [1, 3, 4]
+        assert [event.sequence for event in collector.events()] == [1, 2, 3, 4]
+
+    asyncio.run(main())
+
+
+def test_subscriber_buffer_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        SimulationEventCollector(subscriber_buffer=0)
+
+
 def test_event_rejects_non_allowlisted_attribute() -> None:
     with pytest.raises(ValidationError, match="non-allowlisted attributes"):
         SimulationEvent(

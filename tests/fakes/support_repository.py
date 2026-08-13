@@ -1,6 +1,12 @@
 from uuid import UUID, uuid4
 
-from app.domain.support.schemas import OrderRead, PolicyDocumentRead, TicketCreate, TicketRead
+from app.domain.support.schemas import (
+    OrderRead,
+    OrderStatus,
+    PolicyDocumentRead,
+    TicketCreate,
+    TicketRead,
+)
 
 
 class InMemorySupportRepository:
@@ -21,6 +27,16 @@ class InMemorySupportRepository:
             return None
         self.orders[order.id] = order
         return order
+
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> OrderRead | None:
+        order = self.orders.get(order_id)
+        if order is None or order.customer_id != customer_id or order.status != "delivered":
+            return None
+        refunded = order.model_copy(update={"status": OrderStatus.REFUNDED})
+        self.orders[order_id] = refunded
+        return refunded
 
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead:
         stored_ticket = TicketRead(id=uuid4(), **ticket.model_dump())

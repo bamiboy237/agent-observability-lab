@@ -16,9 +16,10 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agent_observability_test
       DATABASE_URL_UNPOOLED: postgresql+asyncpg://postgres:postgres@localhost:5432/agent_observability_test
       ENVIRONMENT: test
+      RUN_DATABASE_TESTS: "1"
     services:
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_DB: agent_observability_test
           POSTGRES_PASSWORD: postgres

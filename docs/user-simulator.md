@@ -1,4 +1,4 @@
-# User simulator CLI and timeline UI
+# User simulator: live runs and timelines
 
 The user simulator runs a persona against a real product agent (the support
 sandbox or a reference workflow) behind a guided setup wizard, then streams
@@ -16,15 +16,23 @@ uv run lab simulate list                 # grouped catalog listing
 uv run lab simulate validate             # strict YAML validation
 uv run lab simulate run <scenario-id>    # guided setup + preflight + live run
 uv run lab simulate run <scenario-id> --yes --max-turns 8
+uv run lab simulate run <scenario-id> --view textual
 ```
 
 - `run` with no id and on a terminal opens the grouped chooser, then lets you
-  edit persona context / script / goal / max turns, pick an environment
-  profile, and review the setup before starting.
+  adjust who is making the request, what they say, the desired outcome, and
+  the turn limit before starting.
 - `--yes` skips every prompt (non-interactive). Missing required values fail
   instead of prompting. Overrides: `--profile`, `--max-turns`, `--persona`,
   `--script`, `--goal`.
 - `--no-live` prints plain one-line events even on a terminal.
+- Interactive runs ask whether to use Rich or Textual after setup and preflight.
+  Use `--view rich` or `--view textual` to choose without a prompt. `--tui` is
+  kept as a compatibility alias for `--view textual`.
+- The Textual view is a full-screen run workspace. It supports event filtering,
+  pause/resume of the view, keyboard navigation, safe event details, live
+  counts, elapsed time, responsive narrow-terminal layouts, and a verified
+  result summary. The run and persistent log continue while the view is paused.
 - `--json` prints only the stable final report (or the structured
   validation/preflight result).
 - `Ctrl-C` after the run has started rolls back the disposable environment,
@@ -34,8 +42,8 @@ uv run lab simulate run <scenario-id> --yes --max-turns 8
 ## Setup review and preflight
 
 After you choose a simulation and profile, the wizard shows a compact review:
-plugin id/name, model, database profile (host/port/database label), the
-`test` environment, the artifact directory, and the rollback/isolation mode.
+scenario, flow, model, database profile (host/port/database label), the `test`
+environment, the artifact directory, and the cleanup/isolation mode.
 
 Before any run id or artifact is allocated, a preflight gate validates:
 
@@ -52,19 +60,30 @@ until every check passes.
 
 ## The timeline
 
-One append-only timeline at 80 columns, styled for SSH sessions:
+One responsive, append-only timeline, capped at 100 columns for readable SSH
+sessions:
 
 - `user` / `agent` lines are the actual in-memory conversation.
 - `tool selected` / `tool result` lines are indented under the agent turn
   and show only the safe projected arguments.
 - `model`, `state`, `approval`, `retry`, `done`, `error`, and `cleanup`
   lines carry semantic colors plus text labels.
+- The display adapts to narrow terminals and identifies each event by marker,
+  text label, and source. It does not rely on color alone.
 - Values are escaped and capped at 160 characters; chain-of-thought is never
   shown (a fixed `(reasoning unavailable)` note is used instead).
 
 Non-terminal output (pipes, files) prints one plain line per event, still
 starting with `run_id=`, `jsonl_path=`, and `report_path=` so existing tail
 workflows keep working.
+
+The Textual view is optional. Interactive runs let the operator choose Rich or
+Textual; non-interactive live runs keep Rich as the compatibility default, and
+plain/JSON output remains the stable automation interface. Textual consumes the
+same plugin and event contracts; it does not own execution or persistence. It
+stays in the repository's Python runtime and has headless interaction tests.
+OpenTUI set a useful 2026 quality reference, but using it here would add a
+second TypeScript/Bun/native runtime and duplicate the CLI application boundary.
 
 ## What gets persisted
 
@@ -86,8 +105,9 @@ values are display-only memory and are never written to disk. The final
 - `config/simulation-environments.yaml` holds non-secret environment
   profiles. Secret values are referenced by environment variable name and
   resolved at runtime; nothing secret ever appears in YAML or in output.
-- The flow registry is authoritative for executable code. A new registered
-  `FlowPlugin` plus one YAML catalog entry appears in `lab simulate list`
+- The flow registry is authoritative for executable code. The YAML catalog is
+  authoritative for setup defaults. A new registered `FlowPlugin` plus one
+  YAML catalog entry appears in `lab simulate list`
   and runs through the same wizard/viewer with zero CLI edits. Duplicate
   scenario ids and unknown plugin/profile ids fail validation with
   `filename: field` messages.
@@ -95,7 +115,7 @@ values are display-only memory and are never written to disk. The final
 ## Local run example
 
 The shipped `lab-test-pg` profile targets the disposable local database on
-`127.0.0.1:5433/lab` and requires the following environment variables
+`127.0.0.1:55433/lab` and requires the following environment variables
 (keep their values out of YAML and out of the repo):
 
 ```bash
@@ -109,6 +129,6 @@ uv run lab simulate run phase2-03-database-timeout --max-turns 8
 
 The selected profile's database URL is resolved from `LAB_TEST_PG_URL` at
 runtime and injected into the run; a conflicting root `DATABASE_URL` is never
-consulted for execution. The setup review edits (persona context, script,
-goal) and the `--persona`/`--script`/`--goal` flags are applied to the run's
-persona by the adapter.
+consulted for execution. The setup review edits (caller context, request,
+desired outcome) and the `--persona`/`--script`/`--goal` flags are applied to
+the run's persona by the adapter.

@@ -6,6 +6,7 @@ new plugin appears in the chooser/listing and runs with zero CLI edits.
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -20,7 +21,6 @@ from app.domain.user_simulator.events import (
 )
 from app.domain.user_simulator.flows import (
     FlowMetadata,
-    FlowPersonaDefaults,
     FlowRegistry,
     FlowRunRequest,
     FlowRunResult,
@@ -40,6 +40,9 @@ MANIFEST_YAML = {
             "plugin_id": FLOW_ID,
             "name": "Fake test flow",
             "description": "A third-party flow that needs no CLI edits.",
+            "persona": "A concise test customer",
+            "script": "Please check my order",
+            "goal": "resolved",
             "max_turns": 3,
             "environment_profile": "lab-test-pg",
         }
@@ -62,7 +65,7 @@ def catalog_dir(tmp_path: Path) -> Path:
 
 
 class _FakePlugin:
-    """A minimal third-party flow: own id/metadata/persona defaults + async engine."""
+    """A minimal third-party flow with its own async engine."""
 
     metadata = FlowMetadata(
         flow_id=FLOW_ID, case_id=FLOW_ID, kind="custom", name="Fake test flow"
@@ -71,13 +74,6 @@ class _FakePlugin:
     def __init__(self, *, interrupt: bool = False) -> None:
         self.requests: list[FlowRunRequest] = []
         self._interrupt = interrupt
-
-    def persona_defaults(self) -> FlowPersonaDefaults:
-        return FlowPersonaDefaults(
-            persona="A concise test customer",
-            script="Please check my order",
-            goal="resolved",
-        )
 
     async def _engine(self, request: FlowRunRequest) -> FlowRunResult:
         sinks = [request.sink] if request.sink is not None else []
@@ -220,7 +216,8 @@ def test_plain_mode_prints_one_line_per_event(catalog_dir: Path, capsys, monkeyp
     assert "jsonl_path=artifacts/user-simulator/run-xyz.jsonl" in lines
     assert "[1] ENGINE start starting" in lines
     assert "[2] PERSONA user Please check my order" in lines
-    assert "[4] SUPPORT model model support_agent.answer tokens=5 (reasoning unavailable)" in lines
+    model_line = "[4] SUPPORT model (reasoning unavailable) · model support_agent.answer tokens=5"
+    assert model_line in lines
     assert "[5] SUPPORT tool result get_order_status(order_id=o1) ok" in lines
     assert "[7] SUPPORT state state: order:delivered" in lines
     assert "status: state_verified_success (verified) · 1 turns · 5 tokens · cost $0.0100" in lines
@@ -238,7 +235,7 @@ def test_rich_mode_renders_header_labels_and_values(
     out = captured.out
     assert "USER SIMULATOR" in out
     assert "Fake test flow" in out
-    assert "run run-xyz" in out
+    assert "RUN  run-xyz" in out
     assert "tool selected" in out
     assert "tool result" in out
     assert "user" in out
@@ -253,17 +250,35 @@ def test_rich_mode_truncates_values_to_fit_80_columns(
 
     registry = _registry(_FakePlugin())
     monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
-    monkeypatch.setattr(
-        simulate,
-        "_persona_defaults",
-        lambda plugin: FlowPersonaDefaults(script="x" * 400, persona="x", goal="x"),
-    )
     code = _run(["simulate", "run", FLOW_ID], registry, catalog_dir, live=True)
     captured = capsys.readouterr()
     assert code == 0
     ansi = re.compile(r"\x1b\[[0-9;]*m")
     visible = [ansi.sub("", line) for line in captured.out.splitlines() if line.strip()]
     assert max(len(line) for line in visible) <= 80
+
+
+def test_rich_timeline_adapts_to_a_narrow_terminal(capsys) -> None:
+    from rich.console import Console
+
+    console = Console(width=48, highlight=False)
+    sink = simulate.RichTimelineSink(_FakePlugin.metadata, console=console)
+    emitter = EventEmitter("run-narrow", FLOW_ID, [sink])
+    emitter.emit(
+        EventKind.START,
+        EventSource.ENGINE,
+        text="starting",
+        detail=("run_id=run-narrow", "jsonl_path=a.jsonl", "report_path=a.json"),
+    )
+    emitter.emit(
+        EventKind.AGENT,
+        EventSource.SUPPORT,
+        text="A long response that must fit without breaking the terminal layout",
+    )
+
+    visible = capsys.readouterr().out.splitlines()
+    assert max(len(line) for line in visible) <= 48
+    assert any("agent" in line and "support" in line for line in visible)
 
 
 def test_missing_simulation_fails_with_available_list(
@@ -284,6 +299,61 @@ def test_no_simulation_id_without_a_terminal_fails(catalog_dir: Path, capsys) ->
         _run(["simulate", "run"], registry, catalog_dir)
     assert excinfo.value.code == 1
     assert "simulation_required" in capsys.readouterr().err
+
+
+def test_textual_mode_refuses_non_terminal_output(
+    catalog_dir: Path, monkeypatch, capsys
+) -> None:
+    registry = _registry(_FakePlugin())
+    monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
+
+    with pytest.raises(SystemExit) as excinfo:
+        _run(["simulate", "run", FLOW_ID, "--tui"], registry, catalog_dir)
+
+    assert excinfo.value.code == 1
+    assert "tui_requires_terminal" in capsys.readouterr().err
+
+
+def test_interactive_run_chooses_a_renderer_when_no_view_is_given(monkeypatch) -> None:
+    args = argparse.Namespace(view=None, tui=False, json=False)
+    monkeypatch.setattr(simulate, "_choose_view", lambda console: "textual")
+
+    assert (
+        simulate._resolve_view(
+            args,
+            interactive=True,
+            use_live=True,
+            console=object(),  # type: ignore[arg-type]
+        )
+        == "textual"
+    )
+
+
+def test_explicit_renderer_and_tui_alias_bypass_the_chooser(monkeypatch) -> None:
+    monkeypatch.setattr(
+        simulate,
+        "_choose_view",
+        lambda console: pytest.fail("explicit renderer must not prompt"),
+    )
+
+    assert (
+        simulate._resolve_view(
+            argparse.Namespace(view="rich", tui=False, json=False),
+            interactive=True,
+            use_live=True,
+            console=object(),  # type: ignore[arg-type]
+        )
+        == "rich"
+    )
+    assert (
+        simulate._resolve_view(
+            argparse.Namespace(view=None, tui=True, json=False),
+            interactive=True,
+            use_live=True,
+            console=object(),  # type: ignore[arg-type]
+        )
+        == "textual"
+    )
 
 
 def test_keyboard_interrupt_exits_130(catalog_dir: Path, capsys, monkeypatch) -> None:
@@ -422,7 +492,7 @@ def test_selected_profile_url_reaches_the_run_and_root_url_is_ignored(
     """A conflicting remote root DATABASE_URL must never reach the plugin."""
     monkeypatch.setenv("DATABASE_URL", "postgresql://root:secret@db.example.invalid:5432/prod")
     monkeypatch.setenv(
-        "LAB_TEST_PG_URL", "postgresql://lab:lab@127.0.0.1:5433/lab"
+        "LAB_TEST_PG_URL", "postgresql://lab:lab@127.0.0.1:55433/lab"
     )
     plugin = _FakePlugin()
     registry = _registry(plugin)
@@ -431,7 +501,7 @@ def test_selected_profile_url_reaches_the_run_and_root_url_is_ignored(
     assert code == 0
     request = plugin.requests[0]
     assert request.runtime is not None
-    assert request.runtime.database_url == "postgresql://lab:lab@127.0.0.1:5433/lab"
+    assert request.runtime.database_url == "postgresql://lab:lab@127.0.0.1:55433/lab"
     assert "db.example.invalid" not in (request.runtime.database_url or "")
     assert request.runtime.environment == "test"
 

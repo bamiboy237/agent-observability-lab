@@ -38,8 +38,6 @@ from app.domain.user_simulator.events import (
 )
 from app.domain.user_simulator.flows import (
     FlowMetadata,
-    FlowPersonaDefaults,
-    FlowPersonaProvider,
     FlowPlugin,
     FlowRegistry,
     FlowRunRequest,
@@ -61,7 +59,7 @@ from app.domain.user_simulator.preflight import (
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_INTERRUPTED = 130
-TIMELINE_WIDTH = 80
+TIMELINE_MAX_WIDTH = 100
 MAX_VALUE_CHARS = 160
 REASONING_UNAVAILABLE = "(reasoning unavailable)"
 DEFAULT_ROOT = "artifacts/user-simulator"
@@ -98,6 +96,21 @@ _STYLES = {
 }
 
 _TOOL_KINDS = frozenset({EventKind.TOOL_SELECTED, EventKind.TOOL_RESULT})
+
+_MARKERS = {
+    EventKind.START: "◆",
+    EventKind.USER: "●",
+    EventKind.AGENT: "●",
+    EventKind.MODEL: "·",
+    EventKind.TOOL_SELECTED: "↳",
+    EventKind.TOOL_RESULT: "↳",
+    EventKind.APPROVAL: "!",
+    EventKind.RETRY: "↻",
+    EventKind.STATE: "◇",
+    EventKind.DONE: "✓",
+    EventKind.ERROR: "×",
+    EventKind.CLEANUP: "○",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +157,7 @@ def _label_of(kind: EventKind) -> str:
 def _model_text(text: str) -> str:
     """Append the fixed reasoning-unavailable note; chain-of-thought is never shown."""
     base = text or "model response"
-    return f"{base} {REASONING_UNAVAILABLE}"
+    return f"{REASONING_UNAVAILABLE} · {base}"
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +166,11 @@ def _model_text(text: str) -> str:
 
 
 class RichTimelineSink:
-    """One append-only operational timeline at 80 columns with semantic colors."""
+    """Responsive, append-only operational timeline with semantic colors."""
 
     def __init__(self, metadata: FlowMetadata, console: Console | None = None) -> None:
         self._metadata = metadata
-        self._console = console or Console(highlight=False, width=TIMELINE_WIDTH)
+        self._console = console or Console(highlight=False)
         self._header_shown = False
         self.run_id: str | None = None
 
@@ -177,55 +190,68 @@ class RichTimelineSink:
             self.run_id = run_id
         jsonl_path = detail.get("jsonl_path", "")
         report_path = detail.get("report_path", "")
-        inner = TIMELINE_WIDTH - 4  # panel borders plus padding
+        width = _console_width(self._console)
+        inner = width - 4  # panel borders plus padding
         metadata = self._metadata
-        name = short_value(metadata.name)[:30]
-        title_line = f"case {metadata.case_id} · {metadata.kind}"
-        if name:
-            title_line += f" · {name}"
-        title_line = _fit(title_line, inner)
-        run_line = f"run {short_value(run_id) if run_id else '?'}"
+        name = short_value(metadata.name)
+        eyebrow = _fit(f"{metadata.kind.upper()}  /  {metadata.case_id}", inner)
+        name_line = _fit(name or metadata.case_id, inner)
+        run_line = f"RUN  {short_value(run_id) if run_id else '?'}"
         if jsonl_path:
-            run_line += f" · jsonl {short_value(jsonl_path)}"
+            run_line += f"  ·  EVENTS  {short_value(jsonl_path)}"
         run_line = _fit(run_line, inner)
-        report_line = _fit(f"report {short_value(report_path)}", inner)
+        report_line = _fit(f"REPORT  {short_value(report_path)}", inner)
         body = Text()
-        body.append(title_line, style="bold")
+        body.append(eyebrow, style="bold cyan")
         body.append("\n")
-        run_text = Text(run_line)
-        if run_id:
-            run_text.stylize("cyan", 4, 4 + len(short_value(run_id)))
-        body.append(run_text)
+        body.append(name_line, style="bold white")
+        body.append("\n\n")
+        body.append(run_line, style="dim")
         body.append("\n")
         body.append(Text(report_line, style="dim"))
         self._console.print(
             Panel(
                 body,
-                title="USER SIMULATOR",
-                border_style="dim",
-                width=TIMELINE_WIDTH,
+                title=" USER SIMULATOR ",
+                subtitle=" LIVE ",
+                border_style="cyan",
+                width=width,
                 expand=True,
             )
+        )
+        self._console.print(
+            Text("  #  EVENT          SOURCE       DETAIL", style="bold bright_black")
         )
 
     def _print_line(self, display: DisplayEvent) -> None:
         label = _label_of(display.kind)
         style = _STYLES.get(display.kind, "")
+        marker = _MARKERS.get(display.kind, "·")
         indent = "  " if display.kind in _TOOL_KINDS else ""
         text = display.text or ""
         if display.kind is EventKind.MODEL:
             text = _model_text(text)
-        prefix = f"{indent}{display.seq:>3} "
-        label_width = max(len(label), 8)
-        text_width = TIMELINE_WIDTH - len(prefix) - label_width - 1
+        width = _console_width(self._console)
+        source = display.source.value
+        prefix = f"{indent}{display.seq:>3} {marker} "
+        label_width = 13
+        source_width = 11
+        text_width = max(width - len(prefix) - label_width - source_width - 3, 1)
         value = short_value(text)
         if len(value) > text_width:
             value = value[: max(text_width - 1, 0)] + "…"
         line = Text()
         line.append(prefix, style="dim")
         line.append(f"{label:<{label_width}} ", style=style)
+        line.append(f"{source:<{source_width}}", style="bright_black")
+        line.append("│ ", style="bright_black")
         line.append(value)
         self._console.print(line, no_wrap=True, overflow="ignore")
+
+
+def _console_width(console: Console) -> int:
+    """Use the available terminal width, capped for readable scan lines."""
+    return max(20, min(TIMELINE_MAX_WIDTH, console.size.width))
 
 
 class PlainEventSink:
@@ -313,6 +339,61 @@ def _interactive(args: argparse.Namespace, live: bool) -> bool:
     return live and not args.yes and sys.stdin.isatty()
 
 
+def _choose_view(console: Console) -> str:
+    """Choose the live renderer once setup is ready to execute.
+
+    The choice is intentionally a renderer choice, not a second run mode:
+    both views consume the same plugin, event stream, persistence, and
+    cleanup path.
+    """
+    console.print(
+        Panel(
+            Text(
+                "Watch the run as a compact event spine, or keep a fast terminal timeline.\n"
+                "Both views show the same live events and finish with the same report.",
+                style="dim",
+            ),
+            title=" LIVE VIEW ",
+            subtitle=" choose a surface ",
+            border_style="cyan",
+            width=_console_width(console),
+        )
+    )
+    choice = Prompt.ask(
+        "live view",
+        choices=["rich", "textual"],
+        default="textual",
+        console=console,
+    )
+    return choice
+
+
+def _resolve_view(
+    args: argparse.Namespace,
+    *,
+    interactive: bool,
+    use_live: bool,
+    console: Console,
+) -> str:
+    """Resolve one explicit or interactive renderer selection."""
+    requested: str | None = cast("str | None", getattr(args, "view", None))
+    if getattr(args, "tui", False):
+        if requested is not None and requested != "textual":
+            _fail(
+                "view_conflict",
+                "--tui selects the Textual view; remove --view rich or choose --view textual",
+                args=args,
+            )
+        requested = "textual"
+    if requested is not None:
+        return requested
+    if not use_live:
+        return "plain"
+    if interactive:
+        return _choose_view(console)
+    return "rich"
+
+
 def _build_catalog(
     args: argparse.Namespace, registry: FlowRegistry
 ) -> SimulationCatalog:
@@ -335,12 +416,6 @@ def _env_for_preflight() -> dict[str, str]:
     except Exception:
         pass
     return values
-
-
-def _persona_defaults(plugin: FlowPlugin) -> FlowPersonaDefaults:
-    if isinstance(plugin, FlowPersonaProvider):
-        return plugin.persona_defaults()
-    return FlowPersonaDefaults()
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +459,6 @@ def _cmd_list_json(catalog: SimulationCatalog) -> int:
 
 def _cmd_list(args: argparse.Namespace, live: bool) -> int:
     registry: FlowRegistry = args.registry
-    registry.ensure_builtins()
     catalog = _build_catalog(args, registry)
     if not catalog.ok:
         if getattr(args, "json", False):
@@ -405,7 +479,7 @@ def _cmd_list(args: argparse.Namespace, live: bool) -> int:
         groups.setdefault(scenario.group, []).append(scenario)
     if live:
         console = Console(highlight=False)
-        console.print(Text("USER SIMULATOR — simulations", style="bold cyan"))
+        console.print(Text("SIMULATOR — live scenarios", style="bold cyan"))
         for group in sorted(groups):
             console.print(Text(group, style="bold"))
             for scenario in groups[group]:
@@ -428,7 +502,6 @@ def _cmd_list(args: argparse.Namespace, live: bool) -> int:
 def _cmd_validate(args: argparse.Namespace, live: bool) -> int:
     del live
     registry: FlowRegistry = args.registry
-    registry.ensure_builtins()
     catalog = _build_catalog(args, registry)
     issues = catalog.validate()
     if getattr(args, "json", False):
@@ -467,7 +540,7 @@ def _choose_scenario(
     table = Table(
         title="Choose a simulation",
         box=None,
-        width=TIMELINE_WIDTH,
+        width=_console_width(console),
         highlight=True,
     )
     table.add_column("#", justify="right", style="dim")
@@ -507,14 +580,22 @@ def _wizard_edit(
     """Interactive edit + review loop; returns None when the user cancels."""
     while True:
         persona = Prompt.ask(
-            "persona context",
+            "who is making the request?",
             default=effective.persona or "(none)",
             console=console,
         )
-        script = Prompt.ask("script", default=effective.script or "(none)", console=console)
-        goal = Prompt.ask("goal", default=effective.goal or "(none)", console=console)
+        script = Prompt.ask(
+            "what should they say?",
+            default=effective.script or "(none)",
+            console=console,
+        )
+        goal = Prompt.ask(
+            "what would count as a good outcome?",
+            default=effective.goal or "(none)",
+            console=console,
+        )
         turns = Prompt.ask(
-            "max turns", default=str(effective.max_turns), console=console
+            "turn limit", default=str(effective.max_turns), console=console
         )
         try:
             max_turns = int(turns)
@@ -530,7 +611,7 @@ def _wizard_edit(
         if args.profile is None:
             profiles = list(catalog.environments())
             rows = {str(index): item for index, item in enumerate(profiles, 1)}
-            console.print(Text("Environment profiles", style="bold cyan"))
+            console.print(Text("Where should this run?", style="bold cyan"))
             for index, item in enumerate(profiles, 1):
                 console.print(f"  {index}. {item.label}  [dim]({item.profile_id})[/dim]")
             current = next(
@@ -539,7 +620,7 @@ def _wizard_edit(
                 "1",
             )
             choice = Prompt.ask(
-                "Choose an environment profile",
+                "choose a run environment",
                 choices=list(rows) + ["q"],
                 default=current,
                 console=console,
@@ -557,7 +638,7 @@ def _wizard_edit(
         )
         _print_review(console, updated, selected_profile)
         confirm = Prompt.ask(
-            "Start the simulation? [y/N]",
+            "start this run? [y/N]",
             choices=["y", "n", "q", "back"],
             default="n",
             console=console,
@@ -580,15 +661,15 @@ def _review_lines(setup: EffectiveSetup, profile: EnvironmentProfile) -> list[st
     port = profile.db_port or "?"
     db = profile.db_name or "?"
     return [
-        f"plugin     {metadata.flow_id} ({metadata.kind})",
-        f"name       {setup.scenario.name or metadata.name}",
+        f"scenario   {setup.scenario.name or metadata.name}",
+        f"flow       {metadata.flow_id} ({metadata.kind})",
         f"model      {model}",
         f"database   {host}:{port}/{db} (profile {profile.profile_id})",
-        f"env        {profile.environment}",
+        f"environment {profile.environment}",
         f"artifacts  {profile.artifact_root}",
-        f"rollback   {profile.isolation_policy} (loopback only: "
+        f"cleanup    {profile.isolation_policy} (loopback only: "
         f"{'yes' if profile.loopback_only else 'no'})",
-        f"turns      {setup.max_turns}",
+        f"turn limit {setup.max_turns}",
     ]
 
 
@@ -600,7 +681,7 @@ def _print_review(
     plain: bool = False,
 ) -> None:
     if plain:
-        print("setup review")
+        print("run setup")
         for line in _review_lines(setup, profile):
             print(f"  {line}", flush=True)
         return
@@ -609,13 +690,18 @@ def _print_review(
         body.append(line)
         body.append("\n")
     console.print(
-        Panel(body, title="Setup review", border_style="dim", width=TIMELINE_WIDTH)
+        Panel(
+            body,
+            title=" BEFORE WE START ",
+            subtitle=" check this run ",
+            border_style="cyan",
+            width=_console_width(console),
+        )
     )
 
 
 async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
     registry: FlowRegistry = args.registry
-    registry.ensure_builtins()
     catalog = _build_catalog(args, registry)
     if not catalog.ok:
         if getattr(args, "json", False):
@@ -657,13 +743,12 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
         )
 
     plugin = registry.get(scenario.plugin_id)
-    defaults = _persona_defaults(plugin)
     effective = EffectiveSetup(
         plugin=plugin,
         scenario=scenario,
-        persona=args.persona or scenario.persona or defaults.persona,
-        script=args.script or scenario.script or defaults.script,
-        goal=args.goal or scenario.goal or defaults.goal,
+        persona=args.persona or scenario.persona,
+        script=args.script or scenario.script,
+        goal=args.goal or scenario.goal,
         max_turns=args.max_turns or scenario.max_turns,
     )
     if not 1 <= effective.max_turns <= 50:
@@ -741,7 +826,21 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
                 print(f"  - {issue}", file=sys.stderr)
         return EXIT_ERROR
 
-    sink = _build_sink(plugin.metadata, args, use_live)
+    view = _resolve_view(
+        args,
+        interactive=interactive,
+        use_live=use_live,
+        console=console,
+    )
+    use_tui = view == "textual"
+    if use_tui and not use_live:
+        _fail(
+            "tui_requires_terminal",
+            "the Textual view needs an interactive terminal; omit --view or use "
+            "--no-live for plain output",
+            args=args,
+        )
+    sink = None if use_tui else _build_sink(plugin.metadata, args, use_live)
     request = FlowRunRequest(
         case_id=scenario.plugin_id,
         max_turns=effective.max_turns,
@@ -754,7 +853,17 @@ async def _cmd_run(args: argparse.Namespace, live: bool) -> int:
     )
     args._sink = sink
     args._artifact_root = profile.artifact_root
-    result = await plugin.run(request)
+    if use_tui:
+        from app.cli.textual_simulate import run_textual_simulator
+
+        result = await run_textual_simulator(
+            plugin,
+            request,
+            scenario_name=scenario.name or plugin.metadata.name,
+            profile_label=profile.label,
+        )
+    else:
+        result = await plugin.run(request)
     _print_final(result, args, use_live)
     return EXIT_OK
 
@@ -784,7 +893,17 @@ def _print_final(
     if report.cost_usd is not None:
         line += f" · cost ${report.cost_usd:.4f}"
     if live:
-        Console(highlight=False).print(Text(line, style="bold green"))
+        console = Console(highlight=False)
+        result_style = "green" if report.verified_goal else "yellow"
+        result_title = " VERIFIED " if report.verified_goal else " REVIEW NEEDED "
+        console.print(
+            Panel(
+                Text(line, style=f"bold {result_style}"),
+                title=result_title,
+                border_style=result_style,
+                width=_console_width(console),
+            )
+        )
     else:
         print(line, flush=True)
     print(f"run_id={report.run_id}", flush=True)
@@ -909,14 +1028,25 @@ def build_simulate_parser(
     run.add_argument(
         "--max-turns", type=int, default=None, help="maximum conversation turns (1-50)"
     )
-    run.add_argument("--persona", default=None, help="override persona context")
-    run.add_argument("--script", default=None, help="override persona script")
-    run.add_argument("--goal", default=None, help="override persona goal")
+    run.add_argument("--persona", default=None, help="override who is making the request")
+    run.add_argument("--script", default=None, help="override what the caller says")
+    run.add_argument("--goal", default=None, help="override the desired outcome")
     run.add_argument(
         "--yes", action="store_true", help="skip interactive prompts; fail if missing"
     )
     run.add_argument(
         "--no-live", action="store_true", help="plain one-line events even on a terminal"
+    )
+    run.add_argument(
+        "--tui",
+        action="store_true",
+        help="open the full-screen Textual workspace (compatibility alias for --view textual)",
+    )
+    run.add_argument(
+        "--view",
+        choices=("rich", "textual"),
+        default=None,
+        help="select the live view; interactive runs ask when omitted",
     )
     run.add_argument(
         "--json", action="store_true", default=argparse.SUPPRESS,

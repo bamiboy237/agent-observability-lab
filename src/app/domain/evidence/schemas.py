@@ -23,6 +23,7 @@ Scalar = bool | int | float | str
 TASK_INPUT_ALLOWLIST: frozenset[str] = frozenset(
     {
         "agent.workflow.version",
+        "prompt.version",
         "agent.routing.instructions.version",
         "agent.answer.instructions.version",
         "support.intent",

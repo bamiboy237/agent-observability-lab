@@ -58,10 +58,16 @@ class SupportService:
         if order.status not in REFUNDABLE_ORDER_STATUSES:
             raise InvalidTransition()
 
-        refunded_order = order.model_copy(update={"status": OrderStatus.REFUNDED})
-        saved_order = await self._repository.save_order(refunded_order)
+        saved_order = await self._repository.refund_order_if_delivered(
+            command.order_id, command.actor_id
+        )
         if saved_order is None:
-            raise OrderNotFound()
+            current = await self._repository.get_order(command.order_id)
+            if current is None:
+                raise OrderNotFound()
+            if current.customer_id != command.actor_id:
+                raise Forbidden()
+            raise InvalidTransition()
         return saved_order
 
     async def get_latest_policy(self, slug: str) -> PolicyDocumentRead:

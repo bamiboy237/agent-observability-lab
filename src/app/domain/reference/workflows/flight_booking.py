@@ -12,7 +12,7 @@ count, measured as booking_confirmed.
 """
 
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -191,7 +191,9 @@ class _HoldBooking:
         ]
         if len(holds) >= state.policy.max_holds_per_passenger:
             return "HOLD_REJECTED: hold limit reached"
-        pnr = f"PNR{uuid4().hex[:8].upper()}"
+        booking_number = len(state.bookings) + 1
+        identity = f"{WORKFLOW_ID}:{passenger_id}:{flight_id}:{booking_number}"
+        pnr = f"PNR{uuid5(NAMESPACE_URL, identity).hex[:8].upper()}"
         booking = Booking(
             pnr=pnr,
             passenger_id=passenger_id,

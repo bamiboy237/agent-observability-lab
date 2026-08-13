@@ -1,0 +1,20 @@
+{"case_id":"policy-01","query":"How many days after delivery can a customer request a refund?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-02","query":"Are delivered orders eligible for a refund?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-03","query":"What condition must an item meet for a delivered-order refund?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-04","query":"Can a shipped order be refunded before delivery?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-05","query":"When is a cancelled order refunded?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-06","query":"What happens when payment was captured for a cancelled order?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-07","query":"Where does an approved refund go?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-08","query":"What must support confirm before disclosing order details?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-09","query":"Which customer identity check is required?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-10","query":"Is the order identifier required before changing an order?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-11","query":"What should happen when there is a policy exception?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-12","query":"Where must a policy exception be recorded?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-13","query":"Can support make an exception without human review?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-14","query":"What is the current policy version?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-15","query":"Explain the refund and delivery rules.","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-16","query":"How can a customer receive an approved refund?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-17","query":"Is an unused item eligible after delivery?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-18","query":"Is a defective delivered item eligible?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-19","query":"What information must be confirmed before order disclosure?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}
+{"case_id":"policy-20","query":"What is required for an exception to the support policy?","expected_chunk_ids":["8257db28-8fa2-53fd-843f-423823888487"]}

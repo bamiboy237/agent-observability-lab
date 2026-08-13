@@ -1,5 +1,5 @@
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -67,7 +67,9 @@ async def test_repository_failure_leaves_order_unchanged() -> None:
     order = make_order()
 
     class FailingRepository(InMemorySupportRepository):
-        async def save_order(self, order: OrderRead) -> OrderRead | None:
+        async def refund_order_if_delivered(
+            self, order_id: UUID, customer_id: UUID
+        ) -> OrderRead | None:
             raise RuntimeError("database write failed")
 
     repository = FailingRepository((order,))

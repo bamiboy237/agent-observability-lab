@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     model_candidate_name: str | None = None
     model_candidate_base_url: str | None = None
     model_candidate_api_key: SecretStr | None = None
+    retrieval_enabled: bool = True
+    embedding_api_key: SecretStr | None = None
+    embedding_base_url: str | None = None
+    retrieval_corpus_version: str = "policy-v1"
 
     @field_validator("database_url", "database_url_unpooled", mode="before")
     @classmethod

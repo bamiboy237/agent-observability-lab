@@ -3,7 +3,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.support.models import Order, PolicyDocument, Ticket
@@ -14,6 +14,10 @@ class SupportRepository(Protocol):
     async def get_order(self, order_id: UUID) -> OrderRead | None: ...
 
     async def save_order(self, order: OrderRead) -> OrderRead | None: ...
+
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> OrderRead | None: ...
 
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead: ...
 
@@ -44,6 +48,23 @@ class SqlAlchemySupportRepository:
         stored_order.total_amount = order.total_amount
         await self._session.flush()
         return OrderRead.model_validate(stored_order)
+
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> OrderRead | None:
+        """Atomically refund one delivered order owned by the customer."""
+        statement = (
+            update(Order)
+            .where(
+                Order.id == order_id,
+                Order.customer_id == customer_id,
+                Order.status == "delivered",
+            )
+            .values(status="refunded")
+            .returning(Order)
+        )
+        stored_order = await self._session.scalar(statement)
+        return OrderRead.model_validate(stored_order) if stored_order is not None else None
 
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead:
         stored_ticket = Ticket(**ticket.model_dump())

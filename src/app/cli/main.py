@@ -784,11 +784,11 @@ def _proof_markdown(report: ProofReport) -> str:
 
 
 
-def _scanned_artifact_count() -> int:
+def _scanned_artifact_count(artifacts_dir: Path = ARTIFACTS_DIR) -> int:
     """This function counts every generated JSON report the audit scans."""
     count = 0
     for directory in ("bundles", "proof", "reference", "audit"):
-        path = ARTIFACTS_DIR / directory
+        path = artifacts_dir / directory
         if path.exists():
             count += len(list(path.glob("*.json")))
     return count
@@ -818,10 +818,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
         for index, bundle_json in enumerate(rows, 1):
             findings.extend(scan_payload(bundle_json, context=f"saved-case-{index}"))
 
-        bundles_dir = ARTIFACTS_DIR / "bundles"
-        proof_dir = ARTIFACTS_DIR / "proof"
-        reference_dir = ARTIFACTS_DIR / "reference"
-        audit_dir = ARTIFACTS_DIR / "audit"
+        artifacts_dir = Path(args.artifacts_root)
+        bundles_dir = artifacts_dir / "bundles"
+        proof_dir = artifacts_dir / "proof"
+        reference_dir = artifacts_dir / "reference"
+        audit_dir = artifacts_dir / "audit"
         bundle_files = sorted(bundles_dir.glob("*.json")) if bundles_dir.exists() else []
         proof_files = sorted(proof_dir.glob("*.json")) if proof_dir.exists() else []
         reference_files = (
@@ -830,7 +831,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
         previous_audit_files = (
             sorted(audit_dir.glob("*.json")) if audit_dir.exists() else []
         )
-        out_dir = Path(args.out) if args.out else ARTIFACTS_DIR / "audit"
+        out_dir = Path(args.out) if args.out else audit_dir
         for path in (
             bundle_files + proof_files + reference_files + previous_audit_files
         ):
@@ -978,7 +979,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
             risks=tuple(risks),
             skipped_checks=tuple(skipped),
         )
-        out_dir = Path(args.out) if args.out else ARTIFACTS_DIR / "audit"
+        out_dir = Path(args.out) if args.out else audit_dir
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "phase7-audit.json").write_text(report.model_dump_json(indent=2))
         (out_dir / "phase7-audit.md").write_text(_audit_markdown(report))
@@ -988,7 +989,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
             (
                 f"Audit complete: {len(findings)} finding(s), {len(facts)} fact(s), "
                 f"{len(risks)} risk(s). Scanned {len(rows)} saved bundle(s) and "
-                f"{_scanned_artifact_count()} "
+                f"{_scanned_artifact_count(artifacts_dir)} "
                 f"artifact(s). Wrote {out_dir / 'phase7-audit.json'}."
             ),
         )
@@ -1291,8 +1292,9 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.set_defaults(func=cmd_bundle_compile)
 
     p = sub.add_parser("run", help="run one bundle or saved case")
-    p.add_argument("bundle_path", nargs="?", help="bundle JSON file")
-    p.add_argument("--case", help="saved case as <case-id>@<version>")
+    run_source = p.add_mutually_exclusive_group(required=True)
+    run_source.add_argument("bundle_path", nargs="?", help="bundle JSON file")
+    run_source.add_argument("--case", help="saved case as <case-id>@<version>")
     p.add_argument("--offline", action="store_true", help="use the deterministic model substitute")
     p.set_defaults(func=cmd_run)
 
@@ -1328,12 +1330,14 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.set_defaults(func=cmd_suite_run)
 
     p = sub.add_parser("cases", help="list saved cases")
-    p.add_argument("list", nargs="?", default="list")
-    p.set_defaults(func=cmd_cases_list)
+    psub = p.add_subparsers(dest="cases_command", required=True)
+    listing = psub.add_parser("list", help="list saved cases")
+    listing.set_defaults(func=cmd_cases_list)
 
     p = sub.add_parser("suites", help="list saved suites")
-    p.add_argument("list", nargs="?", default="list")
-    p.set_defaults(func=cmd_suites_list)
+    psub = p.add_subparsers(dest="suites_command", required=True)
+    listing = psub.add_parser("list", help="list saved suites")
+    listing.set_defaults(func=cmd_suites_list)
 
     p = sub.add_parser("proof", help="phase 7.5 proof")
     psub = p.add_subparsers(dest="proof_command", required=True)
@@ -1349,6 +1353,11 @@ def build_parser() -> argparse.ArgumentParser:
     psub = p.add_subparsers(dest="audit_command", required=True)
     audit_run = psub.add_parser("run", help="run the audit against an isolated test database")
     audit_run.add_argument("--out", help="audit report output directory")
+    audit_run.add_argument(
+        "--artifacts-root",
+        default=str(ARTIFACTS_DIR),
+        help="artifact tree to scan (default: artifacts)",
+    )
     audit_run.set_defaults(func=cmd_audit)
 
     p = sub.add_parser(

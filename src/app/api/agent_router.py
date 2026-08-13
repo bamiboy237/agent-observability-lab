@@ -1,9 +1,4 @@
-"""This module defines HTTP routes for the Phase 2 reference agent.
-
-The application does not mount this router in ``app.main``.
-The application needs one line in ``main.py`` to mount this router.
-Tests exercise this router without the main application.
-"""
+"""This module defines the mounted HTTP route for one support-agent turn."""
 
 from typing import Annotated
 from uuid import UUID
@@ -17,6 +12,9 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.domain.agent.errors import ModelNotConfigured
 from app.domain.agent.schemas import SupportRequest, SupportResponse
+from app.domain.retrieval.embeddings import OpenAIEmbeddingProvider
+from app.domain.retrieval.fusion import FusedRetriever
+from app.domain.retrieval.storage import KeywordRetriever, VectorRetriever
 from app.domain.support.repository import SqlAlchemySupportRepository
 from app.telemetry.config import build_tracer
 from app.telemetry.recorder import TraceRecorder
@@ -54,10 +52,30 @@ def get_agent(
         base_url=settings.model_base_url,
         api_key=settings.model_api_key,
     )
+    policy_retriever = None
+    embedding_key = settings.embedding_api_key or (
+        settings.model_api_key if settings.model_provider == "openai" else None
+    )
+    if settings.retrieval_enabled and embedding_key is not None:
+        embedding_provider = OpenAIEmbeddingProvider(
+            api_key=embedding_key.get_secret_value(),
+            base_url=settings.embedding_base_url,
+        )
+        policy_retriever = FusedRetriever(
+            KeywordRetriever(session, corpus_version=settings.retrieval_corpus_version),
+            VectorRetriever(
+                session,
+                embedding_provider,
+                corpus_version=settings.retrieval_corpus_version,
+            ),
+            recorder=recorder,
+            corpus_version=settings.retrieval_corpus_version,
+        )
     return PydanticAISupportAgent(
         model_config=model_config,
         recorder=recorder,
         repository=SqlAlchemySupportRepository(session),
+        policy_retriever=policy_retriever,
     )
 
 

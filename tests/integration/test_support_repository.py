@@ -1,3 +1,4 @@
+import asyncio
 from decimal import Decimal
 from uuid import uuid4
 
@@ -11,7 +12,8 @@ from app.config import Settings
 from app.db import get_session_factory
 from app.domain.support.models import Customer, Order, Ticket
 from app.domain.support.repository import SqlAlchemySupportRepository
-from app.domain.support.schemas import OrderStatus, TicketCreate
+from app.domain.support.schemas import OrderStatus, RefundCommand, TicketCreate
+from app.domain.support.service import SupportService
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -71,5 +73,51 @@ async def test_postgres_repository_contract_and_commit_visibility() -> None:
         assert await repository.get_ticket(uuid4()) is None
 
         await session.execute(delete(Ticket).where(Ticket.id == ticket_id))
+        await session.execute(delete(Order).where(Order.id == order_id))
+        await session.execute(delete(Customer).where(Customer.id == customer_id))
+
+
+@pytest.mark.integration
+async def test_concurrent_refunds_allow_exactly_one_state_transition() -> None:
+    customer_id = uuid4()
+    order_id = uuid4()
+    async with get_session_factory().begin() as session:
+        session.add(
+            Customer(
+                id=customer_id,
+                name="Concurrent Refund Customer",
+                email=f"refund-{uuid4().hex}@example.test",
+            )
+        )
+        session.add(
+            Order(
+                id=order_id,
+                customer_id=customer_id,
+                status="delivered",
+                total_amount=Decimal("48.25"),
+            )
+        )
+
+    async def refund_once() -> object:
+        try:
+            async with get_session_factory().begin() as session:
+                return await SupportService(
+                    SqlAlchemySupportRepository(session)
+                ).request_refund(RefundCommand(actor_id=customer_id, order_id=order_id))
+        except Exception as error:  # outcome is asserted below
+            return error
+
+    outcomes = await asyncio.gather(refund_once(), refund_once())
+
+    assert (
+        sum(getattr(outcome, "status", None) is OrderStatus.REFUNDED for outcome in outcomes)
+        == 1
+    )
+    assert sum(getattr(outcome, "code", None) == "invalid_transition" for outcome in outcomes) == 1
+
+    async with get_session_factory().begin() as session:
+        stored = await SqlAlchemySupportRepository(session).get_order(order_id)
+        assert stored is not None
+        assert stored.status is OrderStatus.REFUNDED
         await session.execute(delete(Order).where(Order.id == order_id))
         await session.execute(delete(Customer).where(Customer.id == customer_id))

@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "failure_traces_v1",
+  "dataset_version": 1,
+  "trace_schema_version": "3.0.0",
+  "labels": [
+    {"trace_id": "phase2-08-model-cost-comparison-primary", "label": null, "source": "fixture", "note": "accepted success"},
+    {"trace_id": "phase2-08-model-cost-comparison-candidate", "label": null, "source": "fixture", "note": "accepted success"},
+    {"trace_id": "phase2-01-bad-prompt-policy-answer", "label": "policy", "source": "fixture", "note": "ungrounded answer"},
+    {"trace_id": "phase2-02-wrong-policy-evidence", "label": "retrieval", "source": "fixture", "note": "wrong policy evidence"},
+    {"trace_id": "phase2-03-database-timeout", "label": "infrastructure", "source": "fixture", "note": "timeout recovered by retry"},
+    {"trace_id": "phase2-04-wrong-tool-arguments", "label": "tool", "source": "fixture", "note": "tool argument failure"},
+    {"trace_id": "phase2-05-unconfirmed-refund", "label": "policy", "source": "fixture", "note": "confirmation policy block"},
+    {"trace_id": "phase2-06-repeated-step", "label": "infrastructure", "source": "fixture", "note": "repeated step after timeout"},
+    {"trace_id": "phase2-07-slow-database", "label": "infrastructure", "source": "fixture", "note": "database over budget"},
+    {"trace_id": "phase6-routing-no-route", "label": "routing", "source": "hand-built", "note": "intentional routing edge case"},
+    {"trace_id": "phase6-generation-invalid-output", "label": "generation", "source": "hand-built", "note": "intentional generation edge case"}
+  ],
+  "content_hash": "e39a00ae141be7f586ab5ef9b3db26f50b66bf7eb69420f0f9c09368566fd2f6"
+}

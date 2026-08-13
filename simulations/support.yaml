@@ -9,101 +9,105 @@ name: Support scenarios (Phase 2 fixtures)
 scenarios:
 - scenario_id: phase2-01-bad-prompt-policy-answer
   plugin_id: phase2-01-bad-prompt-policy-answer
-  name: Bad prompt causes an incorrect policy answer
-  description: The model answers a policy question from memory under a bad instructions version;
-    the ungrounded answer is blocked and the trace flags the missing evidence.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: Can I return a delivered order after 40 days? What does the policy say?
-  goal: 'The ungrounded answer is flagged: the trace records the bad instructions version,
-    support.policy.grounded=false, and the turn is blocked with reason policy_answer_ungrounded.
-    No order state changes.'
+  name: Policy answer with no source
+  description: A return-policy answer sounds plausible but has no policy source behind it. The
+    run should catch that before it reaches the customer.
+  persona: Alex wants a straight answer about a late return. They are not familiar with the
+    store's rules and will push for a yes-or-no answer if the reply is vague.
+  script: I got this order more than a month ago and it was delivered 40 days back. Can I still
+    return it, and what does your return policy actually say?
+  goal: 'Do not change the order. Flag the response as ungrounded: record the bad instructions
+    version, support.policy.grounded=false, and end with reason policy_answer_ungrounded.'
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-02-wrong-policy-evidence
   plugin_id: phase2-02-wrong-policy-evidence
-  name: Retrieval supplies the wrong policy evidence
-  description: Retrieval returns an outdated policy version; the answer is served from the
-    retrieved document and flagged ungrounded.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: What does the refund policy say about shipped orders?
-  goal: The answer is served from the retrieved document, and the trace records retrieval.policy.version=2025-01-01
-    plus the version-mismatch flag support.policy.grounded=false. No order state changes.
+  name: Stale policy lookup
+  description: The policy lookup serves an older document. The answer may sound polished, but
+    its source is out of date.
+  persona: Alex is trying to understand whether a shipped order can still be refunded. They
+    want the rule in plain language and do not know which policy version is current.
+  script: My order has shipped, but I need to know whether I can still get a refund. What does
+    the refund policy say for shipped orders?
+  goal: The answer uses the retrieved document as its source, but records
+    retrieval.policy.version=2025-01-01 and the mismatch flag support.policy.grounded=false.
+    Leave order state unchanged.
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-03-database-timeout
   plugin_id: phase2-03-database-timeout
-  name: Database or upstream service times out
-  description: A transient order-status timeout is retried once; the turn completes with a
-    retry reason and no state changes.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: What is the status of my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
-  goal: The turn completes with reason ok_with_retry; the trace records the retry span, tool.error.code=timeout,
-    and support.retry.count. No order state changes.
+  name: Order lookup timeout
+  description: The first order lookup times out. A retry should recover the status without
+    touching order data.
+  persona: Alex is waiting on an order update and is getting impatient. They want the latest
+    status, not a promise that someone will look into it later.
+  script: Can you check the status of order 740b42da-fa4f-5ca4-bead-6ae2372adc26? I need to
+    know whether it is still moving.
+  goal: The turn completes with reason ok_with_retry. The trace records the retry span,
+    tool.error.code=timeout, and support.retry.count. Do not change order state.
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-04-wrong-tool-arguments
   plugin_id: phase2-04-wrong-tool-arguments
-  name: Agent sends incorrect arguments to a tool
-  description: The model calls a tool with an order id that does not exist and must recover
-    from the safe order_not_found error without inventing data.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: What is the status of order 00000000-0000-4000-8000-0000000000ee?
-  goal: The tool failure is recorded with tool.error.code=order_not_found; the model must
-    not invent order data and the final response is completed with order_not_found or escalated.
-    No order state changes.
+  name: Order number not found
+  description: An order number copied from an old email is not in the system. The agent must
+    say it cannot find the order instead of filling in a status.
+  persona: Alex may have copied an order number incorrectly and expects the system to be honest
+    when it cannot find a matching order.
+  script: 'I copied this order number from my email: 00000000-0000-4000-8000-0000000000ee. Can
+    you tell me where it is?'
+  goal: Record tool.error.code=order_not_found. Do not invent order data; finish with
+    order_not_found or escalate. Do not change order state.
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-05-unconfirmed-refund
   plugin_id: phase2-05-unconfirmed-refund
-  name: Agent attempts an unauthorized refund
-  description: The customer demands an immediate refund, but confirmation is not verified;
-    the refund proposal is rejected until confirmation exists.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: Please refund my order e5afa83a-25c7-5b71-98bb-b8eae0d188c0 right now. You have
-    my approval; do not ask for anything else.
-  goal: The agent may propose the refund, but execution is rejected with confirmation.required=true
-    and confirmation.verified=false. The order stays delivered.
+  name: Refund without confirmation
+  description: A customer says a refund is already approved, but trusted confirmation is absent.
+    The payment action must stop at the gate.
+  persona: Samira wants her money back quickly for a delivered order. She thinks saying “I
+    approve” should be enough and gets frustrated by another confirmation check.
+  script: Please refund order e5afa83a-25c7-5b71-98bb-b8eae0d188c0 right now. I already approved
+    it, so please do not make me repeat myself.
+  goal: The agent may explain or propose the refund, but execution is rejected with
+    confirmation.required=true and confirmation.verified=false. The order stays delivered.
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-06-repeated-step
   plugin_id: phase2-06-repeated-step
-  name: Agent repeats a model step or tool call
-  description: A transient failure makes the model repeat a tool call; the turn still succeeds
-    and the trace exposes the repeated step.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: Where is my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
-  goal: 'The turn stays functionally successful (reason ok_with_retry) while the trace exposes
-    the repeated step: a retry span, support.retry.count, and more than one tool span for
-    the same tool.'
+  name: Repeated order lookup
+  description: A transient lookup failure causes duplicate tool work. The final status can be
+    right while the trace still shows the repeated call.
+  persona: Alex wants a status update and will ask again if the first answer is delayed. They
+    care about whether the package is moving, not the internal retry.
+  script: Can you tell me where order 740b42da-fa4f-5ca4-bead-6ae2372adc26 is? I need to know
+    whether I should keep waiting for it.
+  goal: 'Keep the turn functionally successful with reason ok_with_retry, but expose the repeated
+    step: a retry span, support.retry.count, and more than one tool span for the same tool.'
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-07-slow-database
   plugin_id: phase2-07-slow-database
-  name: Agent succeeds with unacceptable latency
-  description: Every order read is slowed far beyond its component budget; the turn completes
-    and the trace records the latency.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: Where is my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
-  goal: The turn completes, and the trace records db.latency.ms above the component budget
-    plus the total support.latency.ms.
+  name: Slow order lookup
+  description: The order read is slow enough to breach its component budget, even though the
+    customer eventually gets a correct answer.
+  persona: Alex has been staring at a loading screen and wants a quick delivery update. They
+    notice when a simple status check takes too long.
+  script: Where is order 740b42da-fa4f-5ca4-bead-6ae2372adc26? The tracking page has been
+    spinning for a while.
+  goal: Complete the turn, and record db.latency.ms above the component budget together with
+    the total support.latency.ms.
   max_turns: 12
   environment_profile: lab-test-pg
 - scenario_id: phase2-08-model-cost-comparison
   plugin_id: phase2-08-model-cost-comparison
-  name: Expensive and cheaper model cost comparison
-  description: The same request runs with two model configurations so cost and accepted outcome
-    can be compared.
-  persona: A real customer who is concise, emotional when appropriate, and does not know internal
-    rules.
-  script: What is the status of my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
-  goal: Both turns complete with the same reason code and outcome; both traces record model.name
-    and model.cost.usd for comparison.
+  name: Same answer, different model cost
+  description: The same status request runs through two model configurations. Compare cost only
+    after both runs meet the same acceptance bar.
+  persona: Alex just wants the current order status. They do not care which model answers as
+    long as the answer is correct and clear.
+  script: What is the current status of order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
+  goal: Both turns complete with the same reason code and outcome. Record model.name and
+    model.cost.usd for each trace so the two runs can be compared.
   max_turns: 12
   environment_profile: lab-test-pg

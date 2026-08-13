@@ -14,8 +14,15 @@ TRACE_ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
     {
         # Workflow and version metadata
         "agent.workflow.version",
+        "workflow.id",
+        "workflow.run.id",
+        "workflow.node",
+        "workflow.route",
+        "prompt.version",
         "agent.routing.instructions.version",
         "agent.answer.instructions.version",
+        "routing.route",
+        "routing.confidence",
         "agent.model.provider",
         "agent.model.name",
         # Turn outcome
@@ -43,11 +50,21 @@ TRACE_ATTRIBUTE_ALLOWLIST: frozenset[str] = frozenset(
         "retrieval.policy.slug",
         "retrieval.policy.version",
         "retrieval.latency.ms",
+        "retrieval.score",
+        "retrieval.query.hash",
+        "retrieval.corpus.version",
+        "retrieval.hit.ids",
+        "retrieval.hit.ranks",
+        "retrieval.hit.scores",
+        "retrieval.fusion.k",
+        "retrieval.dataset.version",
         # Tools
         "tool.name",
         "tool.order.id",
         "tool.latency.ms",
         "tool.error.code",
+        "generation.error.code",
+        "generation.finish.reason",
         # Database
         "db.operation",
         "db.latency.ms",

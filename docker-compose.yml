@@ -1,4 +1,62 @@
-# Database is Neon — no local Postgres needed.
-# Add services here if you need local infrastructure later
-# (e.g. a Redis cache, a mock external API, etc.)
-services: {}
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: lab
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - lab-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lab:lab@db:5432/lab
+      DATABASE_URL_UNPOOLED: postgresql+asyncpg://lab:lab@db:5432/lab
+      ENVIRONMENT: local
+      OTEL_TRACING_ENABLED: "false"
+      LANGSMITH_TRACING: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: >-
+      sh -c "uv run alembic upgrade head
+      && uv run uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["test"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lab:lab@db:5432/lab
+      DATABASE_URL_UNPOOLED: postgresql+asyncpg://lab:lab@db:5432/lab
+      ENVIRONMENT: test
+      RUN_DATABASE_TESTS: "1"
+      OTEL_TRACING_ENABLED: "false"
+      LANGSMITH_TRACING: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uv run pytest tests/unit tests/integration
+
+volumes:
+  lab-postgres-data:

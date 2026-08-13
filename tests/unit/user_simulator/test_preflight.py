@@ -22,10 +22,8 @@ PROFILE = type(
         "loopback_only": True,
         "db_url_env": "LAB_TEST_PG_URL",
         "db_host": "127.0.0.1",
-        "db_port": 5433,
+        "db_port": 55433,
         "db_name": "lab",
-        "migration_command": None,
-        "migration_profile": "lab-test-pg",
         "isolation_policy": "transaction-rollback",
         "artifact_root": "artifacts/user-simulator",
         "model_provider": None,
@@ -36,10 +34,10 @@ PROFILE = type(
 
 
 def test_resolve_runtime_uses_the_selected_profile_url() -> None:
-    env = {"LAB_TEST_PG_URL": "postgresql://lab:lab@127.0.0.1:5433/lab"}
+    env = {"LAB_TEST_PG_URL": "postgresql://lab:lab@127.0.0.1:55433/lab"}
     runtime, issues = resolve_runtime(PROFILE, env)
     assert issues == ()
-    assert runtime.database_url == "postgresql://lab:lab@127.0.0.1:5433/lab"
+    assert runtime.database_url == "postgresql://lab:lab@127.0.0.1:55433/lab"
     assert runtime.environment == "test"
     assert runtime.isolation_policy == "transaction-rollback"
     assert runtime.artifact_root == "artifacts/user-simulator"
@@ -47,9 +45,9 @@ def test_resolve_runtime_uses_the_selected_profile_url() -> None:
 
 def test_resolve_runtime_refuses_mismatched_host_port_or_db() -> None:
     cases = {
-        "postgresql://db.example.com:5433/lab": "host",
+        "postgresql://db.example.com:55433/lab": "host",
         "postgresql://127.0.0.1:9999/lab": "port",
-        "postgresql://127.0.0.1:5433/other": "database",
+        "postgresql://127.0.0.1:55433/other": "database",
     }
     for url, marker in cases.items():
         _, issues = resolve_runtime(PROFILE, {"LAB_TEST_PG_URL": url})
@@ -59,7 +57,7 @@ def test_resolve_runtime_refuses_mismatched_host_port_or_db() -> None:
 
 def test_resolve_runtime_refuses_non_loopback() -> None:
     _, issues = resolve_runtime(
-        PROFILE, {"LAB_TEST_PG_URL": "postgresql://db.example.com:5433/lab"}
+        PROFILE, {"LAB_TEST_PG_URL": "postgresql://db.example.com:55433/lab"}
     )
     assert any("loopback" in issue.message for issue in issues)
 

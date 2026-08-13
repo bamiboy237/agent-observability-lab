@@ -185,14 +185,13 @@ async def test_injected_profile_url_reaches_provisioner_not_root_database_url(
     from app.config import Settings
     from app.domain.simulation import provisioner
 
+    local = str(Settings().migration_database_url)  # type: ignore[call-arg]
     remote = "postgresql://root:secret@db.example.invalid:5432/prod"
     monkeypatch.setenv("DATABASE_URL", remote)
     monkeypatch.setenv("DATABASE_URL_UNPOOLED", remote)
     # The engine's own settings loader (imported inside run_support) must see
     # the conflicting remote root URL; the injected profile URL still wins.
     monkeypatch.setattr("app.config.get_settings", lambda: Settings())  # type: ignore[arg-type]
-    local = "postgresql://lab:lab@127.0.0.1:5433/lab"
-
     captured: dict[str, object] = {}
     real_factory = provisioner.postgres_provisioner_factory
 

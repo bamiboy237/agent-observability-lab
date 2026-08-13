@@ -36,8 +36,6 @@ class EnvironmentProfileLike(Protocol):
     db_host: str | None
     db_port: int | None
     db_name: str | None
-    migration_command: str | None
-    migration_profile: str | None
     isolation_policy: str
     artifact_root: str
     model_provider: str | None
@@ -45,17 +43,9 @@ class EnvironmentProfileLike(Protocol):
     required_variables: tuple[str, ...]
 
 
-# YAML stores only a migration *profile id*; the command lives in code.
-MIGRATION_COMMANDS = {"local": "uv run alembic upgrade head"}
-
-
-def _migration_fix(profile: EnvironmentProfileLike) -> str:
-    if profile.migration_command:
-        return profile.migration_command
-    return MIGRATION_COMMANDS.get(
-        profile.migration_profile or "",
-        f"apply migrations for profile {profile.migration_profile!r}",
-    )
+def _migration_fix() -> str:
+    """Return the one migration command used by this application."""
+    return "uv run alembic upgrade head"
 
 
 @dataclass(frozen=True)
@@ -203,7 +193,7 @@ async def _probe_database(
             PreflightIssue(
                 "database",
                 f"cannot connect to the test database ({type(error).__name__})",
-                "start the disposable database: docker compose up -d lab-test-pg",
+                "start the disposable database: docker compose up -d db",
             )
         )
         return issues
@@ -214,7 +204,7 @@ async def _probe_database(
             PreflightIssue(
                 "migrations",
                 "alembic_version table not found; migrations are not applied",
-                _migration_fix(profile),
+                _migration_fix(),
             )
         )
         return issues
@@ -226,7 +216,7 @@ async def _probe_database(
             PreflightIssue(
                 "migrations",
                 f"database is at migration {version}, head is {head}",
-                _migration_fix(profile),
+                _migration_fix(),
             )
         )
     return issues

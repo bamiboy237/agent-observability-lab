@@ -11,6 +11,8 @@ from app.db import get_session, get_session_factory
 from app.domain.agent.errors import ModelNotConfigured
 from app.domain.execution.errors import SandboxUnavailableError
 from app.domain.execution.service import ExecutionService
+from app.domain.failures.repository import SqlAlchemyFailureReviewRepository
+from app.domain.failures.service import FailureReviewService
 from app.domain.regression.repository import SqlAlchemyRegressionCaseRepository
 from app.domain.regression.service import RegressionCaseService
 from app.domain.simulation.provisioner import postgres_provisioner_factory
@@ -33,6 +35,13 @@ def get_suite_service(
         SqlAlchemySuiteRepository(session),
         SqlAlchemyRegressionCaseRepository(session),
     )
+
+
+def get_failure_review_service(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FailureReviewService:
+    """Build the failure proposal review service from one database session."""
+    return FailureReviewService(SqlAlchemyFailureReviewRepository(session))
 
 
 def _build_execution_service(settings: Settings) -> ExecutionService:

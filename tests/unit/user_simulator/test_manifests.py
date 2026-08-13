@@ -148,17 +148,32 @@ def test_shipped_scenarios_carry_authoritative_defaults() -> None:
         assert scenario.environment_profile == DEFAULT_PROFILE_ID
 
 
+def test_shipped_scenarios_use_specific_human_requests() -> None:
+    """Keep the live-run setup copy concrete instead of falling back to templates."""
+    catalog = load_simulation_catalog()
+    assert all("Please help with the" not in scenario.script for scenario in catalog.scenarios)
+    assert all(
+        "A business user describing a time-sensitive request" not in scenario.persona
+        for scenario in catalog.scenarios
+    )
+    assert catalog.get("reference-ci_triage").script.startswith(
+        "The Linux checks failed on PR 4821"
+    )
+    assert catalog.get("reference-claims_denial").script.startswith(
+        "Claim R-4421 was denied with code 59"
+    )
+    assert "right-to-work" in catalog.get("reference-onboarding").script
+
+
 def test_shipped_environment_profile_is_lab_test_pg() -> None:
     (profile,) = load_environment_profiles()
     assert profile.profile_id == "lab-test-pg"
     assert profile.environment == "test"
     assert profile.loopback_only is True
     assert profile.db_host == "127.0.0.1"
-    assert profile.db_port == 5433
+    assert profile.db_port == 55433
     assert profile.db_name == "lab"
     assert profile.db_url_env == "LAB_TEST_PG_URL"
-    assert profile.migration_profile == "lab-test-pg"
-    assert profile.migration_command is None  # no command in metadata
     assert profile.isolation_policy == "transaction-rollback"
     assert profile.artifact_root == "artifacts/user-simulator"
     names = profile.required_variables

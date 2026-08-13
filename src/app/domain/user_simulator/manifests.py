@@ -102,8 +102,6 @@ class EnvironmentProfile(BaseModel):
     db_host: str | None = Field(default=None, max_length=200)
     db_port: int | None = Field(default=None, ge=1, le=65535)
     db_name: str | None = Field(default=None, max_length=200)
-    migration_command: str | None = Field(default=None, max_length=500)
-    migration_profile: str | None = Field(default=None, min_length=1, max_length=200)
     isolation_policy: Literal["transaction-rollback"] = "transaction-rollback"
     artifact_root: str = Field(
         default="artifacts/user-simulator", min_length=1, max_length=500

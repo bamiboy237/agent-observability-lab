@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from alembic import command
@@ -52,18 +53,44 @@ async def _cleanup() -> None:
 
 
 @pytest.mark.integration
-async def test_audit_run_scans_and_proves_isolation() -> None:
+async def test_audit_run_scans_and_proves_isolation(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / "artifacts"
+    review_file = tmp_path / "review.json"
+    review_file.write_text(
+        json.dumps(
+            {
+                "approved_request_message": "Use the approved synthetic request.",
+                "reviewer": "alice",
+                "reviewed_at": "2026-08-08T00:00:00Z",
+                "reason": "Reviewed and approved",
+                "source_evidence": "fixture:langsmith",
+            }
+        ),
+        encoding="utf-8",
+    )
     try:
         # Seed the library so the audit scans real saved bundles.
-        _lab("proof", "eight", "--review-file", "artifacts/review.json", "--offline")
+        _lab(
+            "proof",
+            "eight",
+            "--review-file",
+            str(review_file),
+            "--offline",
+            "--out",
+            str(artifacts_root / "proof"),
+        )
+        _lab("reference", "report", "--out", str(artifacts_root / "reference"))
 
-        result = _lab("audit", "run")
+        result = _lab("audit", "run", "--artifacts-root", str(artifacts_root))
         assert "Audit complete" in result.stdout
 
-        report = json.loads(open("artifacts/audit/phase7-audit.json").read())
+        report_path = artifacts_root / "audit" / "phase7-audit.json"
+        report = json.loads(report_path.read_text())
         assert report["environment"] == "test"
         assert report["scanned_bundles"] == 8
-        assert report["scanned_artifacts"] >= 3
+        # One proof report and one reference report are created by this test.
+        # Do not rely on artifacts left by an earlier local run.
+        assert report["scanned_artifacts"] == 2
         assert report["findings"] == []
         facts = "\n".join(report["facts"])
         assert "persistent support tables are unchanged" in facts
@@ -73,7 +100,7 @@ async def test_audit_run_scans_and_proves_isolation() -> None:
         # The audit must scan the 7.6 reference report, not only the proof.
         assert "reference report(s)" in facts
 
-        markdown = open("artifacts/audit/phase7-audit.md").read()
+        markdown = (artifacts_root / "audit" / "phase7-audit.md").read_text()
         assert "## Facts" in markdown
         assert "## Risks" in markdown
     finally:

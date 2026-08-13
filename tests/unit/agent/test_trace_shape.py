@@ -21,6 +21,7 @@ def test_allowed_attributes_are_recorded(
         span.set_attribute("support.confidence", 0.9)
         span.set_attribute("support.message.length", 42)
         span.set_attribute("support.policy.grounded", True)
+        span.set_attribute("prompt.version", "1")
 
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
@@ -30,10 +31,12 @@ def test_allowed_attributes_are_recorded(
         "support.confidence": 0.9,
         "support.message.length": 42,
         "support.policy.grounded": True,
+        "prompt.version": "1",
         "langsmith.metadata.support.intent": "order_status",
         "langsmith.metadata.support.confidence": 0.9,
         "langsmith.metadata.support.message.length": 42,
         "langsmith.metadata.support.policy.grounded": True,
+        "langsmith.metadata.prompt.version": "1",
     }
 
 
