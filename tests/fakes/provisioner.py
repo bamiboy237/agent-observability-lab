@@ -182,6 +182,11 @@ class _RejectingRepository:
     async def save_order(self, order: object) -> object:
         raise self._error
 
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> object:
+        raise self._error
+
     async def create_ticket(self, ticket: object) -> object:
         raise self._error
 

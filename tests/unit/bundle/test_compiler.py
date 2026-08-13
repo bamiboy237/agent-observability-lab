@@ -8,12 +8,14 @@ fixtures.
 """
 
 import json
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 
 from app.adapters.sources.fixture_source import FixtureTraceSource
 from app.domain.agent.schemas import ReasonCode, SupportOutcome
-from app.domain.bundle.compiler import compile_bundle
+from app.domain.bundle.compiler import compile_bundle, compile_confirmed_failure_bundle
 from app.domain.bundle.errors import (
     ForbiddenDataError,
     MissingCoverageError,
@@ -23,6 +25,12 @@ from app.domain.bundle.errors import (
 from app.domain.bundle.extract import synthetic_id
 from app.domain.bundle.schemas import DependencyFixture, ReviewStatus
 from app.domain.evidence.schemas import compute_content_hash
+from app.domain.failures.schemas import (
+    ConfirmedFailureGroup,
+    FailureGroupReview,
+    FailureKind,
+    ReviewDecision,
+)
 from app.domain.simulation.adapters import CoverageItem
 from app.domain.simulation.scenarios import (
     CURRENT_POLICY,
@@ -111,6 +119,54 @@ async def test_compile_bundle_produces_stable_hash_for_identical_inputs() -> Non
     assert first.configuration_versions.model_name == "gpt-5.2"
     assert first.review.status is ReviewStatus.APPROVED
     assert first.review.reviewer == "alice"
+
+
+async def test_confirmed_failure_builder_requires_resolved_group_evidence() -> None:
+    scenario, evidence = await _linked_scenario("phase2-03-database-timeout")
+    evidence_event = evidence.events[-1].event_id
+    review = FailureGroupReview(
+        review_id=uuid4(),
+        proposal_id=uuid4(),
+        decision=ReviewDecision.CONFIRM,
+        reviewer="alice",
+        reason="Confirmed from the linked timeout and retry evidence.",
+        reviewed_at=datetime(2026, 8, 13, tzinfo=UTC),
+        source_evidence_ids=(evidence.evidence_id,),
+        evidence_event_ids={str(evidence.evidence_id): (evidence_event,)},
+        algorithm_version="deterministic-dbscan-v1",
+    )
+    confirmed = ConfirmedFailureGroup(
+        proposal_id=review.proposal_id,
+        group_id=uuid4(),
+        failure_kind=FailureKind.INFRASTRUCTURE,
+        evidence_ids=(evidence.evidence_id,),
+        evidence_event_ids={str(evidence.evidence_id): (evidence_event,)},
+        review=review,
+        dataset_id="failure_traces_v1",
+        dataset_version=1,
+        algorithm_version="deterministic-dbscan-v1",
+    )
+
+    bundle = compile_confirmed_failure_bundle(
+        confirmed_failure=confirmed,
+        scenario=scenario,
+        evidence=evidence,
+        approved_request_message=REVIEW["approved_request_message"],
+        coverage_items=COVERAGE_ITEMS,
+    )
+
+    assert bundle.review.status is ReviewStatus.APPROVED
+    assert bundle.review.source_evidence == f"failure-group:{confirmed.group_id}"
+
+    wrong_group = confirmed.model_copy(update={"evidence_ids": (uuid4(),)})
+    with pytest.raises(MissingEvidenceError):
+        compile_confirmed_failure_bundle(
+            confirmed_failure=wrong_group,
+            scenario=scenario,
+            evidence=evidence,
+            approved_request_message=REVIEW["approved_request_message"],
+            coverage_items=COVERAGE_ITEMS,
+        )
 
 
 async def test_compile_bundle_hash_changes_with_review_input() -> None:

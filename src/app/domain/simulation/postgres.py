@@ -139,6 +139,22 @@ class ObservedSupportRepository:
             )
         return saved
 
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> OrderRead | None:
+        before = await self._repository.get_order(order_id)
+        saved = await self._repository.refund_order_if_delivered(order_id, customer_id)
+        if before is not None and saved is not None and before.status != saved.status:
+            self._record(
+                resource="order",
+                resource_id=saved.id,
+                field="status",
+                before=before.status.value,
+                after=saved.status.value,
+                reason_code=_REFUND_EXECUTED,
+            )
+        return saved
+
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead:
         created = await self._repository.create_ticket(ticket)
         self._record(

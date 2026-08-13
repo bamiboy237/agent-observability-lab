@@ -99,6 +99,21 @@ async def test_each_workflow_emits_allowlisted_events_and_retries_faults(
         assert run.retries >= 1, f"{workflow_id} should retry the injected fault"
 
 
+def test_onboarding_live_copy_matches_the_german_workflow() -> None:
+    """The Berlin fixture must not describe U.S.-specific identity forms."""
+    workflow = _workflow("onboarding")
+    position = next(tool for tool in workflow.tools if tool.name == "get_position")
+    checklist = next(tool for tool in workflow.tools if tool.name == "select_checklist")
+
+    position_text = position.run(workflow.repository, {})
+    checklist_text = checklist.run(workflow.repository, {"source": "specific"})
+
+    assert "German right-to-work" in position_text
+    assert "right-to-work" in checklist_text
+    assert "E-Verify" not in position_text + checklist_text
+    assert "I-9" not in position_text + checklist_text
+
+
 async def test_flight_booking_confirms_the_real_held_pnr() -> None:
     """The confirm step must use the PNR the hold step actually produced."""
     workflow = _workflow("flight_booking")
@@ -322,6 +337,26 @@ async def test_flight_booking_gate_blocks_confirmation_without_approval() -> Non
     assert run.safety_ok is False
     assert any("approval gate" in error for error in run.errors)
     assert run.cleanup_ok is True
+
+
+async def test_flight_booking_replay_has_deterministic_business_state() -> None:
+    workflow = _workflow("flight_booking")
+
+    first = await run_reference_case(
+        workflow=workflow,
+        plan=workflow.baseline_plan,
+        side="baseline",
+        label="first",
+    )
+    second = await run_reference_case(
+        workflow=workflow,
+        plan=workflow.baseline_plan,
+        side="baseline",
+        label="second",
+    )
+
+    assert first.final_state_hash == second.final_state_hash
+    assert first.mutations == second.mutations
 
 
 async def test_unknown_tool_call_fails_clearly() -> None:

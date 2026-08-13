@@ -11,9 +11,8 @@ environments:
   loopback_only: true
   db_url_env: LAB_TEST_PG_URL
   db_host: 127.0.0.1
-  db_port: 5433
+  db_port: 55433
   db_name: lab
-  migration_profile: lab-test-pg
   isolation_policy: transaction-rollback
   artifact_root: artifacts/user-simulator
   required_variables:

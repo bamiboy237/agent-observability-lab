@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.domain.retrieval.answers import PolicyCitation
 from app.domain.support.schemas import OrderRead, PolicyDocumentRead
 
 
@@ -99,6 +100,7 @@ class AnswerContext(BaseModel):
     policy: PolicyDocumentRead | None = None
     proposal: RefundProposal | None = None
     escalation: Escalation | None = None
+    citations: tuple[PolicyCitation, ...] = ()
 
 
 class SupportResponse(BaseModel):

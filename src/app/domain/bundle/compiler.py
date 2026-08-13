@@ -35,6 +35,7 @@ from app.domain.bundle.schemas import (
     SimulationBundle,
 )
 from app.domain.evidence.schemas import TraceEvidence, compute_content_hash
+from app.domain.failures.schemas import ConfirmedFailureGroup
 from app.domain.simulation.adapters import CoverageItem, requirement_is_covered
 from app.domain.simulation.faults import FaultScript
 from app.domain.simulation.schemas import (
@@ -335,4 +336,53 @@ def compile_bundle(
         coverage=coverage,
         redaction_decisions=all_redactions,
         review=reviewed,
+    )
+
+
+def compile_confirmed_failure_bundle(
+    *,
+    confirmed_failure: ConfirmedFailureGroup,
+    scenario: SimulationScenario,
+    evidence: TraceEvidence,
+    approved_request_message: str,
+    corrected_expected_behavior: ExpectedBehavior | None = None,
+    dependency_fixtures: Sequence[DependencyFixture] | None = None,
+    fault_script: FaultScript | None = None,
+    adapter_versions: Mapping[str, str] | None = None,
+    redaction_decisions: Sequence[RedactionDecision] | None = None,
+    coverage_items: Sequence[CoverageItem] = (),
+    forbidden_substrings: Sequence[str] = (),
+) -> SimulationBundle:
+    """Compile an incident-derived bundle from a human-confirmed group only."""
+    if evidence.evidence_id not in confirmed_failure.evidence_ids:
+        raise MissingEvidenceError(
+            scenario_id=scenario.scenario_id,
+            detail="the confirmed failure group does not include this evidence",
+        )
+    expected_event_ids = set(
+        confirmed_failure.evidence_event_ids.get(str(evidence.evidence_id), ())
+    )
+    actual_event_ids = {event.event_id for event in evidence.events}
+    if not expected_event_ids or not expected_event_ids <= actual_event_ids:
+        raise MissingEvidenceError(
+            scenario_id=scenario.scenario_id,
+            detail="confirmed failure evidence events do not resolve in the source trace",
+        )
+    review = confirmed_failure.review
+    return compile_bundle(
+        scenario=scenario,
+        evidence=evidence,
+        approved_request_message=approved_request_message,
+        reviewer=review.reviewer,
+        reviewed_at=review.reviewed_at.isoformat(),
+        reason=review.reason,
+        review_status="approved",
+        source_evidence=f"failure-group:{confirmed_failure.group_id}",
+        corrected_expected_behavior=corrected_expected_behavior,
+        dependency_fixtures=dependency_fixtures,
+        fault_script=fault_script,
+        adapter_versions=adapter_versions,
+        redaction_decisions=redaction_decisions,
+        coverage_items=coverage_items,
+        forbidden_substrings=forbidden_substrings,
     )

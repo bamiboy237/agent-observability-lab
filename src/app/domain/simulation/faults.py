@@ -105,6 +105,12 @@ class FaultInjectingRepository:
         await self._maybe_fault("confirm_refund", {"order_id": str(order.id)})
         return await self._repository.save_order(order)
 
+    async def refund_order_if_delivered(
+        self, order_id: UUID, customer_id: UUID
+    ) -> OrderRead | None:
+        await self._maybe_fault("confirm_refund", {"order_id": str(order_id)})
+        return await self._repository.refund_order_if_delivered(order_id, customer_id)
+
     async def create_ticket(self, ticket: TicketCreate) -> TicketRead:
         await self._maybe_fault("escalate", {"subject": ticket.subject})
         return await self._repository.create_ticket(ticket)

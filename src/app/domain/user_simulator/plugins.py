@@ -13,7 +13,6 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from app.domain.user_simulator.flows import (
     FlowMetadata,
-    FlowPersonaDefaults,
     FlowPlugin,
     FlowRegistry,
     FlowRunRequest,
@@ -198,18 +197,12 @@ class _FlowPlugin:
         self,
         metadata: FlowMetadata,
         run: Callable[[FlowRunRequest], Awaitable[FlowRunResult]],
-        persona_defaults: FlowPersonaDefaults | None = None,
     ) -> None:
         self.metadata = metadata
         self._run = run
-        self._persona_defaults = persona_defaults
 
     async def run(self, request: FlowRunRequest) -> FlowRunResult:
         return await self._run(request)
-
-    def persona_defaults(self) -> FlowPersonaDefaults:
-        return self._persona_defaults or FlowPersonaDefaults()
-
 
 def _to_flow_result(result: ConversationResult) -> FlowRunResult:
     return FlowRunResult(
@@ -263,9 +256,6 @@ def support_plugin(persona: PersonaDefinition) -> FlowPlugin:
             description=persona.goal,
         ),
         run=run,
-        persona_defaults=FlowPersonaDefaults(
-            persona=persona.persona, script=persona.script, goal=persona.goal
-        ),
     )
 
 
@@ -291,9 +281,6 @@ def reference_plugin(persona: PersonaDefinition) -> FlowPlugin:
             description=persona.goal,
         ),
         run=run,
-        persona_defaults=FlowPersonaDefaults(
-            persona=persona.persona, script=persona.script, goal=persona.goal
-        ),
     )
 
 
@@ -305,7 +292,8 @@ def builtin_plugin_factory() -> tuple[FlowPlugin, ...]:
 
 
 def build_default_registry() -> FlowRegistry:
-    """Create a registry that lazily registers the 15 built-in plugins."""
+    """Create a registry with the 15 built-in plugins."""
     registry = FlowRegistry()
-    registry.register_builtin(builtin_plugin_factory)
+    for plugin in builtin_plugin_factory():
+        registry.register(plugin)
     return registry

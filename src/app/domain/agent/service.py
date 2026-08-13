@@ -25,6 +25,7 @@ from app.domain.agent.schemas import (
     SupportOutcome,
     SupportResponse,
 )
+from app.domain.retrieval.contracts import RetrievalHit, Retriever
 from app.domain.support.errors import Forbidden, InvalidTransition, OrderNotFound
 from app.domain.support.schemas import (
     CreateTicketCommand,
@@ -89,11 +90,13 @@ class SupportAgentService:
         customer_id: UUID,
         recorder: TraceRecorder,
         refund_confirmed: bool = False,
+        policy_retriever: Retriever | None = None,
     ) -> None:
         self._support = support_service
         self.customer_id = customer_id
         self._recorder = recorder
         self._refund_confirmed = refund_confirmed
+        self._policy_retriever = policy_retriever
         self._pending_proposals: dict[UUID, RefundProposal] = {}
         self._confirmed_order_ids: set[UUID] = set()
         self.tool_calls: list[str] = []
@@ -103,6 +106,17 @@ class SupportAgentService:
         self.last_policy: PolicyDocumentRead | None = None
         self.last_ticket: TicketRead | None = None
         self.last_escalation: Escalation | None = None
+        self.last_policy_hits: list[RetrievalHit] = []
+        self._request_message = ""
+
+    @property
+    def policy_retriever(self) -> Retriever | None:
+        """Return the optional measured policy retriever."""
+        return self._policy_retriever
+
+    def set_request_message(self, message: str) -> None:
+        """Set the user query used by the policy retrieval tool."""
+        self._request_message = message
 
     def record_tool_call(self, name: str) -> None:
         """This method records one tool execution for grounding and efficiency checks."""
@@ -158,7 +172,7 @@ class SupportAgentService:
         return order
 
     async def get_policy(self, slug: str = POLICY_SLUG) -> PolicyDocumentRead:
-        """This method retrieves the latest policy document and records its version."""
+        """Retrieve the policy and, when configured, exact evidence for the query."""
         with self._recorder.span("support_agent.retrieval.policy") as span:
             span.set_attribute("retrieval.source", "policy_documents")
             span.set_attribute("retrieval.policy.slug", slug)
@@ -170,6 +184,8 @@ class SupportAgentService:
             span.set_attribute("retrieval.policy.version", policy.version)
             self.retrieved_policy_version = policy.version
             self.last_policy = policy
+            if self._policy_retriever is not None:
+                self.last_policy_hits = await self._policy_retriever.search(self._request_message)
             return policy
 
     async def propose_refund(self, order_id: UUID, reason: str) -> RefundProposal:

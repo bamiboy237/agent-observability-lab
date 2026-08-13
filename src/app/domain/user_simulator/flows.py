@@ -8,7 +8,7 @@ can lazily register optional built-in plugin factories.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -75,15 +75,6 @@ class FlowRunResult:
     report_path: Path
 
 
-@dataclass(frozen=True)
-class FlowPersonaDefaults:
-    """Persona context a plugin can expose for the setup wizard."""
-
-    persona: str = ""
-    script: str = ""
-    goal: str = ""
-
-
 @runtime_checkable
 class FlowPlugin(Protocol):
     """One registered runnable flow.
@@ -95,13 +86,6 @@ class FlowPlugin(Protocol):
     metadata: FlowMetadata
 
     async def run(self, request: FlowRunRequest) -> FlowRunResult: ...
-
-
-@runtime_checkable
-class FlowPersonaProvider(Protocol):
-    """Optional capability: expose default persona context for the wizard."""
-
-    def persona_defaults(self) -> FlowPersonaDefaults: ...
 
 
 @dataclass(frozen=True)
@@ -142,15 +126,10 @@ class FlowNotFoundError(KeyError):
 
 
 class FlowRegistry:
-    """Registers flow plugins and fails loudly on duplicate flow ids.
-
-    Built-in plugin factories can be registered lazily and are materialized
-    once, on first access, so importing the registry stays cheap.
-    """
+    """Registers flow plugins and fails loudly on duplicate flow ids."""
 
     def __init__(self) -> None:
         self._plugins: dict[str, FlowPlugin] = {}
-        self._builtin_factories: list[Callable[[], Iterable[FlowPlugin]]] = []
 
     def register(self, plugin: FlowPlugin) -> None:
         """Register one plugin; a duplicate flow id is a hard error."""
@@ -163,23 +142,8 @@ class FlowRegistry:
             raise FlowRegistrationError(f"duplicate flow id: {flow_id}")
         self._plugins[flow_id] = plugin
 
-    def register_builtin(self, factory: Callable[[], Iterable[FlowPlugin]]) -> None:
-        """Register an optional factory that supplies built-in plugins lazily."""
-        self._builtin_factories.append(factory)
-
-    def ensure_builtins(self) -> None:
-        """Materialize pending built-in factories exactly once."""
-        if not self._builtin_factories:
-            return
-        factories = self._builtin_factories
-        self._builtin_factories = []
-        for factory in factories:
-            for plugin in factory():
-                self.register(plugin)
-
     def get(self, flow_id: str) -> FlowPlugin:
         """Return the plugin for one flow id or raise ``FlowNotFoundError``."""
-        self.ensure_builtins()
         try:
             return self._plugins[flow_id]
         except KeyError:
@@ -187,13 +151,10 @@ class FlowRegistry:
 
     def all(self) -> tuple[FlowPlugin, ...]:
         """Return every registered plugin in registration order."""
-        self.ensure_builtins()
         return tuple(self._plugins.values())
 
     def contains(self, flow_id: str) -> bool:
-        self.ensure_builtins()
         return flow_id in self._plugins
 
     def __len__(self) -> int:
-        self.ensure_builtins()
         return len(self._plugins)

@@ -260,12 +260,3 @@ class StatefulSupportAdapter:
             reason_code=_TICKET_CREATED,
         )
         return DependencyCallResult(ok=True, payload=ticket.model_dump(mode="json"))
-
-
-def seed_state_from(simulation_state: SimulationState) -> "StatefulSupportAdapter":
-    """This function builds a seeded stateful adapter for one scenario."""
-    adapter = StatefulSupportAdapter()
-    import asyncio
-
-    asyncio.get_event_loop_policy().get_event_loop()
-    return adapter

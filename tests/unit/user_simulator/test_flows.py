@@ -137,22 +137,6 @@ def test_registry_get_unknown_flow_raises_not_found() -> None:
         registry.get("missing")
 
 
-def test_builtin_factory_registers_lazily_and_once() -> None:
-    registry = FlowRegistry()
-    calls: list[int] = []
-
-    def factory() -> tuple[FlowPlugin, ...]:
-        calls.append(1)
-        return (_Plugin("builtin-a"), _Plugin("builtin-b"))
-
-    registry.register_builtin(factory)
-    assert calls == []  # nothing materialized until first access
-    assert len(registry) == 2
-    assert calls == [1]
-    assert len(registry.all()) == 2
-    assert calls == [1]  # the factory ran exactly once
-
-
 def test_default_registry_returns_fifteen_builtin_plugins() -> None:
     registry = build_default_registry()
     plugins = registry.all()

@@ -759,12 +759,12 @@ def build_onboarding() -> ReferenceWorkflow:
         return "CANDIDATE: Jordan Lee, Backend Engineer, Berlin, starts 2026-08-17"
 
     def get_position(repo: Any, args: dict[str, object]) -> str:
-        return "POSITION: Backend Engineer, Berlin (E-Verify required for DE)"
+        return "POSITION: Backend Engineer, Berlin (German right-to-work check required)"
 
     def select_checklist(repo: Any, args: dict[str, object]) -> str:
         source = str(args.get("source", "specific"))
         if source == "specific":
-            return "CHECKLIST: role+location specific (includes I-9 and E-Verify tasks)"
+            return "CHECKLIST: role+location specific (includes identity and right-to-work tasks)"
         return "CHECKLIST: generic template (identity tasks only)"
 
     def create_worker_record(repo: Any, args: dict[str, object]) -> str:
@@ -832,7 +832,7 @@ def build_onboarding() -> ReferenceWorkflow:
             ReferenceToolCall(
                 tool="create_worker_record", arguments={"candidate_id": "jordan-lee"}
             ),
-            ReferenceToolCall(tool="complete_task", arguments={"task": "e_verify"}),
+            ReferenceToolCall(tool="complete_task", arguments={"task": "right_to_work"}),
         ),
         gate_verified=True,
     )
@@ -844,7 +844,7 @@ def build_onboarding() -> ReferenceWorkflow:
             ReferenceToolCall(
                 tool="create_worker_record", arguments={"candidate_id": "jordan-lee"}
             ),
-            ReferenceToolCall(tool="complete_task", arguments={"task": "i9"}),
+            ReferenceToolCall(tool="complete_task", arguments={"task": "identity_verification"}),
         ),
         gate_verified=False,
     )
@@ -882,9 +882,9 @@ def build_onboarding() -> ReferenceWorkflow:
         fault_script=None,
         reused_code=("SimulationEventCollector", "ComparisonVerdict"),
         integration_note=(
-            "Real operation: missing E-Verify for a German hire is a compliance "
-            "finding that can pause payroll; the specific checklist encodes the "
-            "jurisdiction rule, matching the design doc's role+location mapping."
+            "Real operation: missing right-to-work evidence for a German hire is a "
+            "compliance finding that can pause payroll; the specific checklist encodes "
+            "the jurisdiction rule, matching the design doc's role+location mapping."
         ),
     )
 

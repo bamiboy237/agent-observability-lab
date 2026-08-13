@@ -49,6 +49,9 @@ from app.domain.agent.service import (
     escalate_turn,
     plan_turn,
 )
+from app.domain.retrieval.answers import build_cited_policy_answer
+from app.domain.retrieval.contracts import Retriever
+from app.domain.retrieval.errors import HallucinatedCitation, RetrievalError
 from app.domain.support.errors import Forbidden, InvalidTransition, OrderNotFound, PolicyNotFound
 from app.domain.support.repository import SupportRepository
 from app.domain.support.service import SupportService
@@ -99,6 +102,7 @@ class AnswerDraft(BaseModel):
 
     intent: RouteIntent
     message: str = Field(min_length=1, max_length=4000)
+    citations: tuple[str, ...] = ()
 
 
 @dataclass
@@ -161,6 +165,7 @@ class PydanticAISupportAgent:
         answer_instructions: str = ANSWER_INSTRUCTIONS,
         answer_instructions_version: str = ANSWER_INSTRUCTIONS_VERSION,
         tools_override: tuple[str, ...] | None = None,
+        policy_retriever: Retriever | None = None,
     ) -> None:
         self._model_config = model_config
         self._recorder = recorder
@@ -168,6 +173,7 @@ class PydanticAISupportAgent:
         self._answer_instructions = answer_instructions
         self._answer_instructions_version = answer_instructions_version
         self._tools_override = tools_override
+        self._policy_retriever = policy_retriever
         self._last_grounded: bool | None = None
         self._model = build_pydantic_ai_model(model_config)
         self._routing_agent = self._build_routing_agent()
@@ -229,7 +235,9 @@ class PydanticAISupportAgent:
             customer_id=request.customer_id,
             recorder=recorder,
             refund_confirmed=request.refund_confirmed,
+            policy_retriever=self._policy_retriever,
         )
+        service.set_request_message(request.message)
         deps = AgentDeps(
             customer_id=request.customer_id,
             service=service,
@@ -241,6 +249,7 @@ class PydanticAISupportAgent:
             "support_agent.turn",
             {
                 "agent.workflow.version": WORKFLOW_VERSION,
+                "prompt.version": ROUTING_INSTRUCTIONS_VERSION,
                 "agent.routing.instructions.version": ROUTING_INSTRUCTIONS_VERSION,
                 "agent.answer.instructions.version": self._answer_instructions_version,
                 "agent.model.provider": self._model_config.provider,
@@ -389,6 +398,18 @@ class PydanticAISupportAgent:
                 and self._answer_instructions_version == ACCEPTED_ANSWER_INSTRUCTIONS_VERSION
                 and "get_policy" in service.tool_calls
             )
+            if grounded and service.policy_retriever is not None:
+                try:
+                    cited = build_cited_policy_answer(
+                        draft.message,
+                        draft.citations,
+                        service.last_policy_hits,
+                    )
+                except HallucinatedCitation:
+                    grounded = False
+                else:
+                    context.citations = cited.citations
+                    message = cited.message
             self._last_grounded = grounded
             if grounded:
                 reason = ReasonCode.POLICY_ANSWER
@@ -479,8 +500,17 @@ async def _get_policy(ctx: RunContext[AgentDeps], slug: str = POLICY_SLUG) -> st
             span.set_attribute("tool.error.code", ReasonCode.TOOL_ERROR.value)
             span.set_error(ReasonCode.TOOL_ERROR.value)
             return "POLICY_NOT_FOUND: no policy document is available; escalate."
+        except RetrievalError as error:
+            span.set_attribute("tool.error.code", error.code)
+            span.set_error(error.code)
+            return "POLICY_RETRIEVAL_UNAVAILABLE: policy evidence could not be verified; escalate."
         deps.service.record_tool_call("get_policy")
         _tool_outcome(span, ReasonCode.POLICY_ANSWER)
+        if deps.service.policy_retriever is not None:
+            evidence = "\n".join(
+                f"[{hit.chunk_id}] {hit.text}" for hit in deps.service.last_policy_hits
+            )
+            return f"POLICY VERSION {policy.version}\n{evidence}"
         return f"POLICY VERSION {policy.version}\n{policy.content}"
 
 
