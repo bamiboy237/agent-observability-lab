@@ -29,6 +29,19 @@ curl -i http://127.0.0.1:8000/healthz
 curl -i http://127.0.0.1:8000/readyz
 ```
 
+## User simulator CLI
+
+Run a persona against the support sandbox or a reference workflow with a
+live 80-column timeline:
+
+```bash
+uv run lab simulate list
+uv run lab simulate run reference-disputes
+```
+
+See `docs/user-simulator.md` for the timeline UI, the persistent-event
+privacy contract, and the generic flow-plugin seam.
+
 ## Quality gate
 
 Run the same checks used by CI:
