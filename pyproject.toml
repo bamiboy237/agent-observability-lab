@@ -20,6 +20,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
 
+[project.scripts]
+lab = "app.cli.main:main"
+
 [tool.uv]
 package = true
 
