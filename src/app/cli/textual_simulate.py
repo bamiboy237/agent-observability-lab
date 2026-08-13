@@ -39,7 +39,7 @@ class EventReceived(Message):
 class TextualSimulatorApp(App[FlowRunResult | None]):
     """Keyboard-first live timeline and completed-run inspection workspace."""
 
-    TITLE = "Agent Reliability Lab"
+    TITLE = "Simulate"
     SUB_TITLE = "User simulator"
     CSS = """
     Screen {
@@ -244,7 +244,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
             yield Static("VIEW PAUSED — the run continues", id="paused")
             with Vertical(id="topbar"):
                 with Horizontal():
-                    yield Static("AGENT RELIABILITY LAB  /  LIVE RUN", id="brand")
+                    yield Static("SIMULATE  /  LIVE RUN", id="brand")
                     yield Label("● RUNNING", id="status")
                 yield Static(self._scenario_name, id="scenario")
             with Horizontal(id="workspace"):

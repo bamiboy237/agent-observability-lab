@@ -38,7 +38,7 @@ class FixtureLangSmithFeedbackSource:
                     raw,
                     evidence,
                     platform="langsmith",
-                    project="agent-reliability-lab",
+                    project="simulate",
                 )
                 for raw in self.annotations_for(evidence.source.trace_id)
             ]

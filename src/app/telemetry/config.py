@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace.export import (
 if TYPE_CHECKING:
     from app.config import Settings
 
-SERVICE_NAME = "agent-observability-lab"
+SERVICE_NAME = "simulate"
 
 _LANGSMITH_OTLP_ENDPOINT = "https://api.smith.langchain.com/otel/v1/traces"
 

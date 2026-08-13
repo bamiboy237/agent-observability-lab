@@ -28,7 +28,7 @@ async def test_langsmith_source_fetches_bounded_cohort() -> None:
     assert os.environ.get("LANGSMITH_API_KEY") is not None
     config = LangSmithSourceConfig(
         api_key=SecretStr(os.environ["LANGSMITH_API_KEY"]),
-        project=os.environ.get("LANGSMITH_PROJECT") or "agent-reliability-lab",
+        project=os.environ.get("LANGSMITH_PROJECT") or "simulate",
         scenario_id=os.environ.get("LANGSMITH_SCENARIO_ID"),
     )
     source = LangSmithSource(config)
@@ -63,7 +63,7 @@ async def test_langsmith_trace_imports_end_to_end_without_duplicates() -> None:
 
     config = LangSmithSourceConfig(
         api_key=SecretStr(os.environ["LANGSMITH_API_KEY"]),
-        project=os.environ.get("LANGSMITH_PROJECT") or "agent-reliability-lab",
+        project=os.environ.get("LANGSMITH_PROJECT") or "simulate",
     )
     source = LangSmithSource(config)
     try:

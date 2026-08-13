@@ -52,22 +52,22 @@ def test_langsmith_export_enabled_when_complete() -> None:
     settings = make_settings(
         langsmith_tracing=True,
         langsmith_api_key="lsv2-test-key",
-        langsmith_project="agent-reliability-lab",
+        langsmith_project="simulate",
     )
 
     config = langsmith_export_config(settings)
 
     assert config is not None
-    assert config.project == "agent-reliability-lab"
+    assert config.project == "simulate"
     assert config.endpoint.startswith("https://")
     assert config.headers["x-api-key"] == "lsv2-test-key"
-    assert config.headers["Langsmith-Project"] == "agent-reliability-lab"
+    assert config.headers["Langsmith-Project"] == "simulate"
     assert "lsv2-test-key" not in repr(config)
 
     provider = build_trace_provider(settings)
     assert provider is not None
     resource = provider.resource.attributes
-    assert resource["service.name"] == "agent-observability-lab"
+    assert resource["service.name"] == "simulate"
     assert resource["agent.workflow.version"] == "2.0.0"
 
 

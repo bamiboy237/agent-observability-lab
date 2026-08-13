@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "production"] = "local"
     langsmith_tracing: bool = False
     langsmith_api_key: SecretStr | None = None
-    langsmith_project: str = "agent-reliability-lab"
+    langsmith_project: str = "simulate"
     langsmith_otlp_endpoint: str | None = None
     otel_tracing_enabled: bool = False
     model_provider: Literal["openai", "anthropic"] | None = None

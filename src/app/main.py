@@ -21,7 +21,7 @@ from app.logging import configure_logging, request_logger
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging()
-    app = FastAPI(title="Agent Observability Lab")
+    app = FastAPI(title="Simulate")
     app.state.settings = settings
     app.dependency_overrides[get_settings] = lambda: settings
 
