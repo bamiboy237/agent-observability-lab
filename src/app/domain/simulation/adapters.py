@@ -115,6 +115,14 @@ class CoverageItem(BaseModel):
     state_transitions: tuple[str, ...]
 
 
+SUPPORT_DATABASE_COVERAGE = CoverageItem(
+    dependency="support.database",
+    kind="stateful",
+    tools=("get_order_status", "get_policy", "propose_refund", "confirm_refund", "escalate"),
+    state_transitions=("order:delivered->refunded", "ticket:created"),
+)
+
+
 class CoverageReport(BaseModel):
     """This class lists supported dependencies and missing coverage."""
 

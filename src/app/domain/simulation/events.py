@@ -10,7 +10,7 @@ forbidden payload bodies never enter the stream.
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from enum import StrEnum
 from time import perf_counter
 from typing import Protocol, runtime_checkable
@@ -180,16 +180,28 @@ class SimulationEventCollector:
         """This method returns the normalized persisted transcript."""
         return tuple(self._events)
 
-    async def stream(self) -> AsyncIterator[SimulationEvent]:
+    async def stream(
+        self,
+        *,
+        until: Callable[[], bool] | None = None,
+    ) -> AsyncIterator[SimulationEvent]:
         """This method streams events as the run emits them.
 
         The consumer stops the iteration when the run result is returned;
-        the transcript in the run result stays complete regardless.
+        the transcript in the run result stays complete regardless. A caller
+        may pass ``until`` to terminate the stream cleanly when its predicate
+        turns true and the queue is drained, for example when the background
+        run task that emits into this collector completes.
         """
         queue: asyncio.Queue[SimulationEvent] = asyncio.Queue()
         self._subscribers.append(queue)
         try:
             while True:
-                yield await queue.get()
+                if until is not None and until() and queue.empty():
+                    return
+                try:
+                    yield await asyncio.wait_for(queue.get(), timeout=0.1)
+                except TimeoutError:
+                    continue
         finally:
             self._subscribers.remove(queue)
