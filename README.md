@@ -1,8 +1,14 @@
-# Agent Reliability Lab
+# Simulate
 
-A customer-support agent and reliability backend that turns selected traces into
-reviewed failure groups, regression cases, deterministic replays, and
-evidence-backed recommendations.
+Continuously evaluate and improve agentic workflows.
+
+Simulate turns opt-in production traces into behavior insights, human-approved
+YAML scenarios, isolated repeated experiments, and neutral evidence. The current
+repository contains the completed Phases 0–7 foundation. Phase 8, the controlled
+experiment engine, is planned but not implemented.
+
+See `BUILD_ROADMAP.md` for the product contract, current phase boundary, cloud
+and BYOVM direction, Textual workflow, and preserved Kumo/Paper UI reference.
 
 ## Local setup
 
