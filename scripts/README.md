@@ -1,17 +1,13 @@
-# User simulator scripts
+# User simulator
 
-Each `run_user_simulator_*.py` script starts one live Luna simulation. It prints the run ID, JSONL transcript path, and final report path **before** the first hosted-model request.
-
-Start a run in the background and follow its safe JSONL events from another terminal:
+The persona simulator uses one generic command and grouped YAML catalogs; it no longer needs one launcher file per scenario.
 
 ```bash
-uv run python scripts/run_user_simulator_disputes.py > /tmp/user-simulator.out 2>&1 &
-SIM_PID=$!
-sleep 1
-tail -f "$(sed -n 's/^jsonl_path=//p' /tmp/user-simulator.out | head -n 1)" &
-TAIL_PID=$!
-wait "$SIM_PID"
-kill "$TAIL_PID" 2>/dev/null || true
+uv run lab simulate list
+uv run lab simulate validate
+uv run lab simulate run <scenario-id> --yes
 ```
 
-The JSONL log redacts conversation text. Use only `ENVIRONMENT=test` and the approved disposable test database.
+Simulation choices come from `simulations/*.yaml`. Safe test database profiles come from `config/simulation-environments.yaml`; secret values stay in environment variables.
+
+The JSONL event log stores only allowlisted redacted fields. Use only `ENVIRONMENT=test` and a disposable database.

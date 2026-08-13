@@ -1,0 +1,72 @@
+# Grouped user-simulator scenarios: reference workflows (Phase 7.6).
+# Metadata only: each scenario references a registered plugin_id and an
+# environment profile_id; no tool code, commands, or secrets live here.
+
+schema_version: '1.0'
+catalog_id: reference-workflow-catalog
+group: reference
+name: Reference workflows (Phase 7.6)
+scenarios:
+- scenario_id: reference-flight_booking
+  plugin_id: reference-flight_booking
+  name: Flight booking
+  description: Search, hold, and confirm a booking behind an explicit customer approval gate.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the flight booking (ctrip-style travel assistant) case.
+  goal: completed
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-incident_response
+  plugin_id: reference-incident_response
+  name: Incident response
+  description: SRE on-call triage with runbook retrieval and a page budget.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the incident-response on-call agent (sre) case.
+  goal: completed
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-ci_triage
+  plugin_id: reference-ci_triage
+  name: CI failure triage
+  description: Flaky-versus-regression triage with a known-issue search and a triage report.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the ci failure triage agent case.
+  goal: completed
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-claims_denial
+  plugin_id: reference-claims_denial
+  name: Claims denial appeal
+  description: Policy-grounded appeal drafting with a versioned policy check.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the healthcare claim denial appeal agent case.
+  goal: completed
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-returns_resolution
+  plugin_id: reference-returns_resolution
+  name: Returns resolution
+  description: Refund-before-return is blocked by an explicit confirmation gate.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the e-commerce returns resolution agent case.
+  goal: blocked
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-onboarding
+  plugin_id: reference-onboarding
+  name: HR onboarding
+  description: Role-and-location checklist selection with compliance tasks.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the hr onboarding coordinator agent case.
+  goal: completed
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: reference-disputes
+  plugin_id: reference-disputes
+  name: Banking disputes
+  description: Reg E dispute pipeline with an evidence-source minimum.
+  persona: A business user describing a time-sensitive request in ordinary language.
+  script: Please help with the banking dispute resolution agent case.
+  goal: blocked
+  max_turns: 12
+  environment_profile: lab-test-pg

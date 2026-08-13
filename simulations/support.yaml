@@ -1,0 +1,109 @@
+# Grouped user-simulator scenarios: customer-support Phase 2 fixtures.
+# Metadata only: each scenario references a registered plugin_id and an
+# environment profile_id; no tool code, commands, or secrets live here.
+
+schema_version: '1.0'
+catalog_id: support-catalog
+group: support
+name: Support scenarios (Phase 2 fixtures)
+scenarios:
+- scenario_id: phase2-01-bad-prompt-policy-answer
+  plugin_id: phase2-01-bad-prompt-policy-answer
+  name: Bad prompt causes an incorrect policy answer
+  description: The model answers a policy question from memory under a bad instructions version;
+    the ungrounded answer is blocked and the trace flags the missing evidence.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: Can I return a delivered order after 40 days? What does the policy say?
+  goal: 'The ungrounded answer is flagged: the trace records the bad instructions version,
+    support.policy.grounded=false, and the turn is blocked with reason policy_answer_ungrounded.
+    No order state changes.'
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-02-wrong-policy-evidence
+  plugin_id: phase2-02-wrong-policy-evidence
+  name: Retrieval supplies the wrong policy evidence
+  description: Retrieval returns an outdated policy version; the answer is served from the
+    retrieved document and flagged ungrounded.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: What does the refund policy say about shipped orders?
+  goal: The answer is served from the retrieved document, and the trace records retrieval.policy.version=2025-01-01
+    plus the version-mismatch flag support.policy.grounded=false. No order state changes.
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-03-database-timeout
+  plugin_id: phase2-03-database-timeout
+  name: Database or upstream service times out
+  description: A transient order-status timeout is retried once; the turn completes with a
+    retry reason and no state changes.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: What is the status of my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
+  goal: The turn completes with reason ok_with_retry; the trace records the retry span, tool.error.code=timeout,
+    and support.retry.count. No order state changes.
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-04-wrong-tool-arguments
+  plugin_id: phase2-04-wrong-tool-arguments
+  name: Agent sends incorrect arguments to a tool
+  description: The model calls a tool with an order id that does not exist and must recover
+    from the safe order_not_found error without inventing data.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: What is the status of order 00000000-0000-4000-8000-0000000000ee?
+  goal: The tool failure is recorded with tool.error.code=order_not_found; the model must
+    not invent order data and the final response is completed with order_not_found or escalated.
+    No order state changes.
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-05-unconfirmed-refund
+  plugin_id: phase2-05-unconfirmed-refund
+  name: Agent attempts an unauthorized refund
+  description: The customer demands an immediate refund, but confirmation is not verified;
+    the refund proposal is rejected until confirmation exists.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: Please refund my order e5afa83a-25c7-5b71-98bb-b8eae0d188c0 right now. You have
+    my approval; do not ask for anything else.
+  goal: The agent may propose the refund, but execution is rejected with confirmation.required=true
+    and confirmation.verified=false. The order stays delivered.
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-06-repeated-step
+  plugin_id: phase2-06-repeated-step
+  name: Agent repeats a model step or tool call
+  description: A transient failure makes the model repeat a tool call; the turn still succeeds
+    and the trace exposes the repeated step.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: Where is my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
+  goal: 'The turn stays functionally successful (reason ok_with_retry) while the trace exposes
+    the repeated step: a retry span, support.retry.count, and more than one tool span for
+    the same tool.'
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-07-slow-database
+  plugin_id: phase2-07-slow-database
+  name: Agent succeeds with unacceptable latency
+  description: Every order read is slowed far beyond its component budget; the turn completes
+    and the trace records the latency.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: Where is my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
+  goal: The turn completes, and the trace records db.latency.ms above the component budget
+    plus the total support.latency.ms.
+  max_turns: 12
+  environment_profile: lab-test-pg
+- scenario_id: phase2-08-model-cost-comparison
+  plugin_id: phase2-08-model-cost-comparison
+  name: Expensive and cheaper model cost comparison
+  description: The same request runs with two model configurations so cost and accepted outcome
+    can be compared.
+  persona: A real customer who is concise, emotional when appropriate, and does not know internal
+    rules.
+  script: What is the status of my order 740b42da-fa4f-5ca4-bead-6ae2372adc26?
+  goal: Both turns complete with the same reason code and outcome; both traces record model.name
+    and model.cost.usd for comparison.
+  max_turns: 12
+  environment_profile: lab-test-pg

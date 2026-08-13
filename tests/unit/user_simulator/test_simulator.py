@@ -1,12 +1,15 @@
 """Focused tests for the hosted persona simulator contract."""
 
+import asyncio
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from app.domain.user_simulator import simulator
-from app.domain.user_simulator.models import UserTurn
+from app.domain.user_simulator.events import EventKind, EventSource, SimulationEvent
+from app.domain.user_simulator.models import BusinessChoice, SimulatorReport, UserTurn
 from app.domain.user_simulator.personas import (
     PERSONA_BY_ID,
     REFERENCE_PERSONAS,
@@ -79,8 +82,18 @@ def test_production_and_offline_modes_are_rejected(
         simulator.require_live_test_environment()
 
 
+class _CaptureSink:
+    """Records display events for order/kind assertions."""
+
+    def __init__(self) -> None:
+        self.events: list[SimulationEvent] = []
+
+    def emit(self, event: SimulationEvent) -> None:
+        self.events.append(event)
+
+
 @pytest.mark.asyncio
-async def test_paths_are_printed_before_the_hosted_model_call(
+async def test_start_event_announces_paths_before_the_hosted_model_call(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     events: list[str] = []
@@ -91,26 +104,26 @@ async def test_paths_are_printed_before_the_hosted_model_call(
     monkeypatch.setattr(
         simulator, "live_model", lambda: events.append("model") or object()
     )
-    original_print = print
-
-    def record_print(*args: object, **kwargs: object) -> None:
-        del kwargs
-        events.append("print:" + " ".join(str(arg) for arg in args))
-
-    monkeypatch.setattr("builtins.print", record_print)
-    result = await simulator.PersonaConversation(
+    capture = _CaptureSink()
+    conversation = simulator.PersonaConversation(
         persona, lambda message, confirmed: _answer(message),
         max_turns=1,
         run_id="early",
         root=tmp_path,
-    ).run(state_success=lambda: (False, ()))
-    assert events[:4] == [
-        "print:run_id=early",
-        f"print:jsonl_path={tmp_path / 'early.jsonl'}",
-        f"print:report_path={tmp_path / 'early.json'}",
-        "model",
-    ]
-    original_print(result.report.run_id)
+    )
+    conversation.events.add(capture)
+    result = await conversation.run(state_success=lambda: (False, ()))
+    first = capture.events[0]
+    assert first.display is not None
+    assert first.display.kind is EventKind.START
+    assert first.display.detail == (
+        "run_id=early",
+        f"jsonl_path={tmp_path / 'early.jsonl'}",
+        f"report_path={tmp_path / 'early.json'}",
+    )
+    # The model is only called after the START event announced the paths.
+    assert events == ["model"]
+    assert result.report.run_id == "early"
 
 
 @pytest.mark.asyncio
@@ -250,24 +263,27 @@ async def test_confirmation_requires_trusted_action_and_survives_turns(
     assert result.report.turns == 2
 
 
-def test_logs_redact_conversation_text(tmp_path: Path) -> None:
-    from app.domain.user_simulator.logging import JsonlEventLog
+def test_persistent_log_never_contains_chat_text(tmp_path: Path) -> None:
+    from app.domain.user_simulator.events import (
+        EventEmitter,
+        EventKind,
+        JsonlPersistentSink,
+    )
 
-    log = JsonlEventLog("safe", "case", tmp_path)
-    log.write("user_turn", message="secret customer email and order data", turn=1)
+    emitter = EventEmitter(
+        "safe", "case", [JsonlPersistentSink("safe", "case", tmp_path)]
+    )
+    emitter.emit(
+        EventKind.USER,
+        EventSource.PERSONA,
+        text="secret customer email and order data",
+        turn=1,
+        message="secret customer email and order data",
+    )
     contents = (tmp_path / "safe.jsonl").read_text()
     assert "secret customer" not in contents
-    assert '"message": "[redacted]"' in contents
-
-
-def test_all_fifteen_scripts_route_to_known_personas() -> None:
-    scripts = sorted(Path("scripts").glob("run_user_simulator_*.py"))
-    assert len(scripts) == 15
-    for script in scripts:
-        marker = 'sys.argv[1:1] = ["'
-        line = next(line for line in script.read_text().splitlines() if marker in line)
-        case_id = line.split(marker, 1)[1].split('"', 1)[0]
-        assert case_id in PERSONA_BY_ID
+    # Chat lives only in display memory; even a redacted copy is never written.
+    assert "message" not in contents
 
 
 class _ReferenceTool:
@@ -416,3 +432,367 @@ async def test_reference_retry_approval_and_transition_contract(
     assert result.report.total_tokens == 12
     assert result.report.cost_usd == pytest.approx(0.04)
     assert repository.destroyed is True
+
+
+@pytest.mark.asyncio
+async def test_reference_events_are_emitted_immediately_in_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Reference tool/approval/retry/state events stream live, never buffered."""
+    from app.domain.reference.contracts import (
+        ReferenceCandidate,
+        ReferenceExpectation,
+        ReferenceObservation,
+        ReferencePlan,
+        ReferenceWorkflow,
+    )
+
+    repository = _ReferenceRepository()
+    calls = 0
+
+    def protected_write(repo: object, arguments: dict[str, object]) -> str:
+        nonlocal calls
+        del arguments
+        calls += 1
+        if calls == 1:
+            raise TimeoutError("temporary")
+        assert isinstance(repo, _ReferenceRepository)
+        repo.state["done"] = True
+        repo._mutations.append(
+            {
+                "resource": "item",
+                "resource_id": "item-1",
+                "field": "status",
+                "before": "draft",
+                "after": "active",
+                "reason_code": "item_activated",
+            }
+        )
+        return "written"
+
+    workflow = ReferenceWorkflow(
+        workflow_id="event-workflow",
+        name="Event workflow",
+        source="unit test",
+        seed_state={},
+        repository=repository,
+        tools=(_ReferenceTool("protected_write", False, protected_write),),
+        expectation=ReferenceExpectation(
+            outcome="completed",
+            reason_codes=("activated",),
+            permitted_transitions=("item:draft->active",),
+            required_transitions=("item:draft->active",),
+            gate_required=True,
+            protected_tools=("protected_write",),
+        ),
+        baseline_plan=ReferencePlan(),
+        candidate_plan=ReferencePlan(),
+        candidate=ReferenceCandidate(
+            name="test", change_type="test", baseline_label="a", candidate_label="b"
+        ),
+        observer=lambda state, mutations: ReferenceObservation(
+            outcome="completed" if state.get("done") else "failed",
+            reason_code="activated" if state.get("done") else "missing",
+            business_outcome="done",
+        ),
+    )
+
+    class EventReferenceAgent:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.name = kwargs.get("name")
+
+        async def run(self, prompt: str, **kwargs: object) -> SimpleNamespace:
+            del prompt, kwargs
+            usage = SimpleNamespace(total_tokens=1, cost=None)
+            if self.name == "persona-user":
+                if not getattr(self, "user_sent", False):
+                    self.user_sent = True
+                    return SimpleNamespace(output=UserTurn(message="Please do it"), usage=usage)
+                return SimpleNamespace(
+                    output=UserTurn(
+                        message="Yes", confirmation_action="confirm_refund"
+                    ),
+                    usage=usage,
+                )
+            business_count = getattr(self, "business_count", 0)
+            self.business_count = business_count + 1
+            from app.domain.user_simulator.models import BusinessChoice
+
+            if business_count < 1:
+                return SimpleNamespace(
+                    output=BusinessChoice(
+                        tool="protected_write", arguments={}, message="write"
+                    ),
+                    usage=usage,
+                )
+            return SimpleNamespace(
+                output=BusinessChoice(message="done", end=True), usage=usage
+            )
+
+    monkeypatch.setattr(simulator, "Agent", EventReferenceAgent)
+    monkeypatch.setattr(simulator, "live_model", lambda: object())
+    monkeypatch.setattr(simulator, "require_live_test_environment", lambda: None)
+    monkeypatch.setattr(
+        "app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,)
+    )
+    persona = REFERENCE_PERSONAS[0].model_copy(
+        update={
+            "scenario_or_workflow_id": "event-workflow",
+            "persona_id": "reference-event-workflow",
+        }
+    )
+    capture = _CaptureSink()
+    result = await simulator.run_reference(
+        persona, max_turns=3, root=tmp_path, event_sink=capture
+    )
+    kinds = [event.display.kind for event in capture.events if event.display is not None]
+    # Tool selection happens before its result; approval precedes the protected
+    # tool; retry is emitted for the transient failure; state and the final
+    # cleanup/done boundaries are all part of the live stream.
+    assert kinds.index(EventKind.TOOL_SELECTED) < kinds.index(EventKind.TOOL_RESULT)
+    assert kinds.index(EventKind.APPROVAL) < kinds.index(EventKind.TOOL_SELECTED)
+    assert EventKind.RETRY in kinds
+    assert EventKind.STATE in kinds
+    assert kinds[-1] is EventKind.DONE
+    assert kinds[-2] is EventKind.CLEANUP
+    assert EventKind.ERROR not in kinds
+    assert result.report.verified_goal is True
+
+
+@pytest.mark.asyncio
+async def test_cancellation_writes_partial_report_and_error_event(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    persona = SUPPORT_PERSONAS[0]
+    _install_persona_model(
+        monkeypatch, [UserTurn(message="Please check it")]
+    )
+    capture = _CaptureSink()
+
+    async def blocking_turn(message: str, confirmed: bool) -> str:
+        del message, confirmed
+        await asyncio.Event().wait()  # never returns; the test cancels the run
+
+    conversation = simulator.PersonaConversation(
+        persona,
+        blocking_turn,
+        max_turns=5,
+        run_id="cancel",
+        root=tmp_path,
+    )
+    conversation.events.add(capture)
+    task = asyncio.create_task(conversation.run(state_success=lambda: (False, ())))
+    await asyncio.sleep(0.05)
+    assert not task.done()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    report_path = tmp_path / "cancel.json"
+    assert report_path.exists()
+    partial = json.loads(report_path.read_text())
+    assert partial["end_reason"] == "cancelled"
+    assert partial["errors"] == ["interrupted by user (Ctrl-C)"]
+    kinds = [event.display.kind for event in capture.events if event.display is not None]
+    assert EventKind.ERROR in kinds
+    assert conversation.last_report is not None
+    assert conversation.last_report.end_reason == "cancelled"
+
+
+# ---------------------------------------------------------------------------
+# Release-blocker coverage: persona overrides, renderer isolation, projection
+# ---------------------------------------------------------------------------
+
+
+def _minimal_result(
+    persona: object, *, kind: str, run_id: str = "r1"
+) -> object:
+    from types import SimpleNamespace as _S
+
+    return _S(
+        report=SimulatorReport(
+            run_id=run_id,
+            case_id=getattr(persona, "persona_id", "case"),
+            kind=kind,
+            model_provider="test",
+            model_name="test",
+            end_reason="max_turns",
+            turns=0,
+            verified_goal=False,
+        ),
+        transcript_path=Path("/tmp") / f"{run_id}.jsonl",
+        report_path=Path("/tmp") / f"{run_id}.json",
+    )
+
+
+@pytest.mark.asyncio
+async def test_builtin_adapters_apply_persona_and_runtime_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wizard/flag overrides reach the built-in adapters, not just the CLI."""
+    from app.domain.user_simulator import plugins as plugins_mod
+    from app.domain.user_simulator.flows import FlowRunRequest, RuntimeEnvironment
+
+    captured: dict[str, object] = {}
+
+    async def fake_run_support(persona: object, **kwargs: object) -> object:
+        captured["support_persona"] = persona
+        captured["support_database_url"] = kwargs.get("database_url")
+        return _minimal_result(persona, kind="support")
+
+    async def fake_run_reference(persona: object, **kwargs: object) -> object:
+        del kwargs
+        captured["reference_persona"] = persona
+        return _minimal_result(persona, kind="reference")
+
+    monkeypatch.setattr(plugins_mod, "run_support", fake_run_support)
+    monkeypatch.setattr(plugins_mod, "run_reference", fake_run_reference)
+
+    support = plugins_mod.support_plugin(SUPPORT_PERSONAS[0])
+    request = FlowRunRequest(
+        case_id="x",
+        persona_context="override persona",
+        script="override script",
+        goal="override goal",
+        runtime=RuntimeEnvironment(database_url="postgresql://lab@127.0.0.1:5433/lab"),
+    )
+    await support.run(request)
+    support_persona = captured["support_persona"]
+    assert support_persona.persona == "override persona"  # type: ignore[attr-defined]
+    assert support_persona.script == "override script"  # type: ignore[attr-defined]
+    assert support_persona.goal == "override goal"  # type: ignore[attr-defined]
+    assert captured["support_database_url"] == "postgresql://lab@127.0.0.1:5433/lab"
+
+    reference = plugins_mod.reference_plugin(REFERENCE_PERSONAS[0])
+    await reference.run(
+        FlowRunRequest(case_id="y", persona_context="rctx", script="rscr", goal="rgoal")
+    )
+    reference_persona = captured["reference_persona"]
+    assert reference_persona.persona == "rctx"  # type: ignore[attr-defined]
+    assert reference_persona.script == "rscr"  # type: ignore[attr-defined]
+    assert reference_persona.goal == "rgoal"  # type: ignore[attr-defined]
+
+
+class _FailingRendererSink:
+    """A CLI renderer that explodes on USER events."""
+
+    def __init__(self) -> None:
+        self.seen: list[SimulationEvent] = []
+
+    def emit(self, event: SimulationEvent) -> None:
+        self.seen.append(event)
+        if event.display is not None and event.display.kind is EventKind.USER:
+            raise RuntimeError("renderer exploded")
+
+
+def _renderer_workflow(repository: object, tool_result: str) -> object:
+    from app.domain.reference.contracts import (
+        ReferenceCandidate,
+        ReferenceExpectation,
+        ReferenceObservation,
+        ReferencePlan,
+        ReferenceWorkflow,
+    )
+
+    def read(repo: object, arguments: dict[str, object]) -> str:
+        del repo, arguments
+        return tool_result
+
+    return ReferenceWorkflow(
+        workflow_id="renderer-flow",
+        name="Renderer flow",
+        source="unit test",
+        seed_state={},
+        repository=repository,  # type: ignore[arg-type]
+        tools=(_ReferenceTool("read", True, read),),
+        expectation=ReferenceExpectation(
+            outcome="ok",
+            reason_codes=("ok",),
+            permitted_transitions=(),
+            required_transitions=(),
+            gate_required=False,
+        ),
+        baseline_plan=ReferencePlan(),
+        candidate_plan=ReferencePlan(),
+        candidate=ReferenceCandidate(
+            name="test", change_type="test", baseline_label="a", candidate_label="b"
+        ),
+        observer=lambda state, mutations: ReferenceObservation(
+            outcome="ok", reason_code="ok", business_outcome="ok"
+        ),
+    )
+
+
+class _OneTurnAgent:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.name = kwargs.get("name")
+
+    async def run(self, prompt: str, **kwargs: object) -> SimpleNamespace:
+        del prompt, kwargs
+        usage = SimpleNamespace(total_tokens=1, cost=None)
+        if self.name == "persona-user":
+            return SimpleNamespace(output=UserTurn(message="Please do it"), usage=usage)
+        return SimpleNamespace(
+            output=BusinessChoice(tool="read", arguments={}, message="ok"), usage=usage
+        )
+
+
+def _install_renderer_fixture(monkeypatch: pytest.MonkeyPatch, workflow: object) -> None:
+    monkeypatch.setattr(simulator, "Agent", _OneTurnAgent)
+    monkeypatch.setattr(simulator, "live_model", lambda: object())
+    monkeypatch.setattr(simulator, "require_live_test_environment", lambda: None)
+    monkeypatch.setattr(
+        "app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,)
+    )
+
+
+@pytest.mark.asyncio
+async def test_renderer_failure_never_aborts_the_business_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repository = _ReferenceRepository()
+    workflow = _renderer_workflow(repository, "RESULT fine")
+    _install_renderer_fixture(monkeypatch, workflow)
+    persona = REFERENCE_PERSONAS[0].model_copy(
+        update={
+            "scenario_or_workflow_id": "renderer-flow",
+            "persona_id": "reference-renderer-flow",
+        }
+    )
+    failing = _FailingRendererSink()
+    result = await simulator.run_reference(
+        persona, max_turns=2, root=tmp_path, event_sink=failing
+    )
+    # The run still completed and the persistent JSONL still reached DONE.
+    assert result.report.end_reason == "state_verified_success"
+    contents = (tmp_path / f"{result.report.run_id}.jsonl").read_text()
+    assert '"event": "done"' in contents
+    # The renderer error was noticed once, as a safe persistent event.
+    assert '"error": "renderer"' in contents
+
+
+@pytest.mark.asyncio
+async def test_tool_result_secret_never_reaches_display_or_disk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repository = _ReferenceRepository()
+    workflow = _renderer_workflow(
+        repository, "SUCCESS secret-token=supersecret-abc123 and more"
+    )
+    _install_renderer_fixture(monkeypatch, workflow)
+    persona = REFERENCE_PERSONAS[0].model_copy(
+        update={
+            "scenario_or_workflow_id": "renderer-flow",
+            "persona_id": "reference-renderer-flow",
+        }
+    )
+    capture = _CaptureSink()
+    result = await simulator.run_reference(
+        persona, max_turns=2, root=tmp_path, event_sink=capture
+    )
+    display_text = " ".join(
+        event.display.text for event in capture.events if event.display is not None
+    )
+    assert "supersecret-abc123" not in display_text
+    assert "(result details hidden)" in display_text  # raw result is projected away
+    contents = (tmp_path / f"{result.report.run_id}.jsonl").read_text()
+    assert "supersecret-abc123" not in contents

@@ -31,6 +31,7 @@ from app.cli.offline import (
     offline_plan,
 )
 from app.cli.report import ProofReport, ProofScenarioResult, ProofScenarioStatus
+from app.cli.simulate import build_simulate_parser
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.domain.audit.report import AuditReport
@@ -62,6 +63,7 @@ from app.domain.suite.runner import run_cohort_model_comparison, run_suite_compa
 from app.domain.suite.schemas import SuiteMemberRef
 from app.domain.suite.service import SuiteService, stable_suite_id
 from app.domain.support.models import Customer, Order, PolicyDocument, Ticket
+from app.domain.user_simulator.plugins import build_default_registry
 
 ARTIFACTS_DIR = Path("artifacts")
 
@@ -1348,6 +1350,11 @@ def build_parser() -> argparse.ArgumentParser:
     audit_run = psub.add_parser("run", help="run the audit against an isolated test database")
     audit_run.add_argument("--out", help="audit report output directory")
     audit_run.set_defaults(func=cmd_audit)
+
+    p = sub.add_parser(
+        "simulate", help="run one user-simulator flow with a live timeline"
+    )
+    build_simulate_parser(p, build_default_registry())
 
     p = sub.add_parser("reference", help="phase 7.6 reference workflows")
     psub = p.add_subparsers(dest="reference_command", required=True)
