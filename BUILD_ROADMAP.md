@@ -1,6 +1,6 @@
 # Simulate — Authoritative Build Roadmap
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ## Current state
 
@@ -44,6 +44,9 @@ evidence. It does not make the release decision.
    outbound allowlists.
 10. **Build the core product first.** Do not add automatic deployment, broad
     autonomy, a second web product, or complex organization roles to the MVP.
+11. **Test the evaluator, not only the workflow.** A passing evaluator is not
+    self-validating. Check it against known-good, no-op, incomplete, and
+    known-bad results before using it as experiment evidence.
 
 ## Core product loop
 
@@ -200,6 +203,11 @@ A published scenario records:
 - tool-call, retry, latency, token, and cost limits;
 - required approvals and cleanup behavior;
 - workflow, prompt, model, tool, policy, fixture, and evaluator versions.
+
+A scenario represents an executable unit of professional work, not only a
+prompt and expected text. Its initial state, allowed actions, dependencies,
+measurable outcomes, forbidden changes, limits, and cleanup must be sufficient
+for a reviewer to understand what the runner will do and how it will be judged.
 
 A trace-derived proposal starts from a central representative trace. Simulate
 can add close variants and extremes, but must label each origin. Only the
@@ -486,6 +494,12 @@ Support both evaluator classes:
 - versioned model-based checks where deterministic checks cannot express the
   quality judgment.
 
+Before an evaluator can contribute experiment evidence, validate it against a
+known-good result, a no-op result, and known incomplete or incorrect results.
+Store these evaluator checks with the evaluator version. A failed check blocks
+the experiment before a VM starts. Model-based evaluator checks must also make
+their model, prompt, and observed variability visible.
+
 For outcomes and counts, report the individual values, mean, standard deviation,
 median, minimum, and maximum. For latency and cost, also report p50, p95, and p99
 only when the sample size supports them. Make model-evaluator variability and
@@ -554,9 +568,11 @@ Phase 8 is complete only when:
 5. disconnect and reconnect preserve one ordered event stream;
 6. lease expiry produces cleanup and no partial result;
 7. deterministic and model-based evaluators retain their versions and evidence;
-8. Textual can reconnect and inspect the complete experiment;
-9. immutable JSON contains all required provenance and no recommendation field;
-10. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud smoke test
+8. every active evaluator passes known-good, no-op, incomplete, and known-bad
+   checks;
+9. Textual can reconnect and inspect the complete experiment;
+10. immutable JSON contains all required provenance and no recommendation field;
+11. Ruff, mypy, unit tests, integration tests, and an end-to-end cloud test
     pass.
 
 # Phase 9 — Behavior discovery and Prime Agent workflow
@@ -598,6 +614,14 @@ Each insight includes:
 - grouping confidence, clearly not causal certainty;
 - several proposed YAML scenarios.
 
+Scenario drafts should cover a representative case, close variants, and useful
+edge cases. Every generated field must retain provenance to sanitized evidence
+or be marked as an explicit design decision. Each draft package includes its
+environment and dependency requirements, evaluator proposal, limits, cleanup,
+and the unresolved questions a reviewer must answer. Generated drafts remain
+candidates; they do not become product truth through repetition or agent
+agreement.
+
 Configured limit violations appear in the report. Notification behavior remains
 configurable. Do not add an opaque ranking model for the MVP.
 
@@ -623,6 +647,7 @@ Before approval, Prime Agent can:
 - inspect sanitized evidence;
 - compare discovery windows;
 - draft an explanation and YAML;
+- draft environment requirements, evaluator checks, and negative test cases;
 - prepare and send the configured notification.
 
 Before approval, Prime Agent cannot publish a scenario or run an experiment.
@@ -731,6 +756,53 @@ For each future web slice:
 # Future improvements — not approved for implementation
 
 These items are concrete but outside the core MVP or need a larger decision.
+
+## Generated scenario assurance — High
+
+**Problem:** Agent-generated scenarios can be impossible, underspecified, or
+scored by evaluators that accept the wrong behavior. One successful agent run
+does not prove that a task or evaluator is sound.
+
+**Evidence:** Z.ai's GLM-5.3 post describes research agents that turn real-work
+patterns into runnable environments, a separate judge agent that attempts each
+task, verifiers synthesized without the reference solution, and oracle, no-op,
+and unsolved-state checks. The post reports the method but does not publish
+false-pass rates or enough detail for independent reproduction.
+
+**Direction:** After Phase 9 produces realistic drafts, validate each candidate
+in its declared disposable environment. Keep scenario generation, solvability
+attempts, and evaluator creation as separate recorded roles. Give evaluator
+generation no access to the reference result. Present successful and failed
+attempts, environment failures, evaluator checks, provenance, and unresolved
+questions to the human reviewer. Measure false passes and false failures before
+expanding automation.
+
+**Why later:** Phase 8 must first provide stable environment, execution,
+evaluator, and evidence contracts. Automated assurance supports human review;
+it must not publish a scenario or start a customer experiment by itself.
+
+## Evaluator shortcut detection — Medium
+
+**Problem:** A workflow can satisfy an evaluator without completing the intended
+task. Examples include doing nothing against a pre-solved state, copying
+expected text, completing only one step, changing evaluator-visible files, or
+using an undeclared external service.
+
+**Evidence:** The GLM-5.3 post states that solver trajectories are used to find
+and close reward shortcuts before verifiers provide training reward. Simulate
+does not train with rewards, so the equivalent risk is an evaluator shortcut
+that creates false experiment evidence.
+
+**Direction:** Retain failed and suspicious attempt trajectories. Use them to
+generate adversarial evaluator checks for empty output, no state change,
+partial completion, copied expected text, forbidden access, pre-existing
+success state, and evaluator-state manipulation. Require deterministic checks
+where possible and version every accepted negative case with the evaluator.
+
+**Why later:** Phase 8 includes a small fixed set of evaluator checks. A
+trajectory-driven attack pipeline needs enough approved scenarios and completed
+runs to measure whether it finds real defects without creating noisy review
+work.
 
 ## OpenTelemetry GenAI semantic interoperability — High
 
@@ -865,6 +937,7 @@ local patterns:
 | [GitHub self-hosted runners](https://docs.github.com/en/actions/reference/runners/self-hosted-runners) | Prefer ephemeral runners for untrusted or isolated work. |
 | [E2B networking](https://e2b.dev/docs/api-reference/sandboxes/create-sandbox) | Make sandbox network access explicit and allowlisted. |
 | [Temporal](https://docs.temporal.io/workflows) and [Hatchet](https://docs.hatchet.run/) | Reserve general durable orchestration until the local state machine is proven. |
+| [GLM-5.3](https://z.ai/blog/glm-5.3) | Treat generated environments as executable units of expert work; separate generation, solvability attempts, and evaluator checks; use solver trajectories to find evaluator shortcuts. Keep human approval and neutral results. |
 
 ## Explicit implementation choices
 
