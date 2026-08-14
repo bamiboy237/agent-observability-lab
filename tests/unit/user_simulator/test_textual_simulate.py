@@ -109,6 +109,24 @@ async def test_tui_runs_filters_inspects_and_returns_result() -> None:
         await pilot.pause()
         assert table.row_count == 5
 
+        await pilot.press("o")
+        await pilot.pause()
+        assert app.query_one("#overview-page").display is True
+        assert app.query_one("#timeline-page").display is False
+        assert "verified" in str(app.query_one("#overview-activity", Static).render())
+
+        await pilot.press("e")
+        await pilot.pause()
+        assert app.query_one("#evidence-page").display is True
+        assert "Outcome" in str(app.query_one("#evidence-observed", Static).render())
+        assert "artifacts/run-textual.json" in str(
+            app.query_one("#evidence-artifacts", Static).render()
+        )
+
+        await pilot.press("t")
+        await pilot.pause()
+        assert app.query_one("#timeline-page").display is True
+
         table.move_cursor(row=1)
         await pilot.pause()
         detail = str(app.query_one("#detail", Static).render())
@@ -227,6 +245,7 @@ async def test_interactive_workbench_configuration_and_launch() -> None:
         # In configuration mode
         assert app.query_one("#config-workspace").display is True
         assert app.query_one("#workspace").display is False
+        assert "SETUP" in str(app.query_one("#page-nav", Static).render())
         assert app.query_one("#input-persona", Input).value == "Frustrated customer"
         assert app.query_one("#input-turns", Input).value == "5"
 
@@ -244,6 +263,7 @@ async def test_interactive_workbench_configuration_and_launch() -> None:
         # Transitioned to live timeline
         assert app.query_one("#config-workspace").display is False
         assert app.query_one("#workspace").display is True
+        assert app.query_one("#timeline-page").display is True
         assert str(app.query_one("#status", Label).render()) == "VERIFIED"
         assert app.query_one("#timeline", DataTable).row_count == 5
 
@@ -251,5 +271,4 @@ async def test_interactive_workbench_configuration_and_launch() -> None:
 
     assert app.return_value is not None
     assert app.return_value.report.verified_goal is True
-
 

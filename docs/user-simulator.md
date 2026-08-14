@@ -29,10 +29,13 @@ uv run lab simulate run <scenario-id> --view textual
 - Interactive runs ask whether to use Rich or Textual after setup and preflight.
   Use `--view rich` or `--view textual` to choose without a prompt. `--tui` is
   kept as a compatibility alias for `--view textual`.
-- The Textual view is a full-screen run workspace. It supports event filtering,
-  pause/resume of the view, keyboard navigation, safe event details, live
+- The Textual view is a full-screen command center. Setup is a separate page
+  for choosing a scenario, editing the run recipe, and reviewing preflight.
+  After launch, `o` opens the run overview, `t` opens the event stream, and `e`
+  opens the evidence handoff. The run and persistent log continue while the
+  view is paused. The pages support event filtering, safe event details, live
   counts, elapsed time, responsive narrow-terminal layouts, and a verified
-  result summary. The run and persistent log continue while the view is paused.
+  result summary.
 - `--json` prints only the stable final report (or the structured
   validation/preflight result).
 - `Ctrl-C` after the run has started rolls back the disposable environment,

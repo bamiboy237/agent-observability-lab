@@ -78,7 +78,8 @@ curl -X POST http://127.0.0.1:8000/workflows \
 
 Run a persona against the support sandbox or a reference workflow with a live
 terminal view. Interactive runs let you choose Rich or the full-screen Textual
-workspace:
+command center. The Textual flow separates setup, overview, timeline, and
+evidence pages:
 
 ```bash
 uv run lab simulate list
