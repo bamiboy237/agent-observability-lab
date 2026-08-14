@@ -743,7 +743,7 @@ For each future web slice:
 ## Interface rules
 
 - Optimize for evidence density and calm hierarchy, not decorative cards.
-- Use sentence case, restrained typography, and semantic status colors.
+- Use restrained typography and semantic status colors.
 - Never use color as the only status signal.
 - Keep important evidence out of tooltips.
 - Use banners for states that need attention and toasts for completed background
@@ -752,6 +752,60 @@ For each future web slice:
 - Show loading, empty, partial, error, cancelled, and complete states.
 - Keep all actions reachable by keyboard.
 - Do not expose raw secrets or unrestricted trace payloads.
+
+## Learned interface language
+
+The accepted Textual workbench establishes Simulate's interface character. Use
+these principles for later terminal work and translate them to a future web
+interface instead of replacing them with a generic software dashboard.
+
+### Visual character
+
+- Treat the interface as a focused work tool: quiet, precise, and centered on
+  evidence. The event timeline and visible provenance are its signature.
+- Use true black as the main working surface, charcoal for focus and selection,
+  soft white for primary text, and gray for secondary information.
+- Reserve muted yellow for warnings and approvals, and red for failures. Do not
+  introduce a general-purpose bright accent color.
+- Build hierarchy with spacing, alignment, text weight, and thin rules. Prefer
+  open rows and continuous work surfaces over nested panels and card grids.
+- Do not add gradients, ornamental shadows, decorative charts, or rounded
+  containers without a specific information or interaction need.
+- Keep typography compact and editorial. A future web interface can use a
+  deliberate type pairing, but it must preserve the terminal's direct,
+  focused tone rather than adopt a generic software-service style.
+
+The current terminal palette is a reference, not a requirement for identical
+web color values: black `#000000`, focus charcoal `#202020`, primary white
+`#f2f2f2`, secondary gray `#a0a0a0`, warning yellow `#e5c558`, and failure red
+`#ef5b5b`.
+
+### Interaction character
+
+- Ask for one decision at a time during setup, then show one compact review
+  before execution. Do not display a wall of fields when the choices have a
+  useful order.
+- Keep the main evidence stream visually dominant. Context and details may move
+  to secondary rails, but the primary row must retain identity, source, status,
+  and meaning when those rails are hidden.
+- Make keyboard focus unmistakable. While a text field has focus, printable
+  keys belong to that field and must not activate global shortcuts.
+- Keep shortcuts visible in a quiet footer. Use the same action name in the
+  shortcut, control, status message, and documentation.
+- Prefer immediate, stable state changes. Add motion only when it explains
+  progress, continuity, or a change of location.
+- Design narrow layouts as complete interfaces, not clipped desktop views.
+  Remove secondary controls and decoration before removing evidence.
+
+### Interface copy
+
+- Use short lowercase labels for events, statuses, commands, and compact
+  controls. Use sentence case for instructions, explanations, and errors.
+- Write plain operational copy. Name what happened, what is running, or what the
+  person can do next. Do not use slogans or conversational filler.
+- Make an error state identify the failed check and give one direct next step.
+- Let each label do one job. Do not repeat the same metadata in several nearby
+  panels only to fill space.
 
 # Future improvements — not approved for implementation
 

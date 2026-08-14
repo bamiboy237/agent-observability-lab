@@ -37,6 +37,23 @@ uv run lab simulate run <scenario-id> --json
   disposable environment, writes a partial report (`end_reason: cancelled`),
   and exits with status 130.
 
+## Workbench interaction
+
+The setup page asks one question at a time and ends with a compact review before
+launch. A focused text field owns printable keys, so typing cannot activate a
+global shortcut. Validation stays on the current step and states what needs to
+change.
+
+The live page keeps the event timeline primary. Context and event details use
+secondary rails on wide terminals. Narrow terminals hide those rails but retain
+each event's source, status, and text in the timeline. A quiet footer keeps the
+available keyboard actions visible, and focus is always shown.
+
+The visual hierarchy comes from spacing, alignment, text weight, and thin
+rules. Rows remain open instead of becoming separate cards. Yellow identifies
+warnings and approvals; red identifies failures; every state also has a text
+label or marker.
+
 ## Setup review and preflight
 
 After you choose a simulation and profile, the wizard shows a compact review:
