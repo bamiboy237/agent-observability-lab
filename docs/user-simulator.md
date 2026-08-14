@@ -12,35 +12,30 @@ scripts.
 ## The commands
 
 ```bash
+uv run lab simulate                      # full-screen Textual workbench
 uv run lab simulate list                 # grouped catalog listing
 uv run lab simulate validate             # strict YAML validation
-uv run lab simulate run <scenario-id>    # guided setup + preflight + live run
+uv run lab simulate run <scenario-id>    # Rich event stream for one run
 uv run lab simulate run <scenario-id> --yes --max-turns 8
-uv run lab simulate run <scenario-id> --view textual
+uv run lab simulate run <scenario-id> --no-live
+uv run lab simulate run <scenario-id> --json
 ```
 
-- `run` with no id and on a terminal opens the grouped chooser, then lets you
-  adjust who is making the request, what they say, the desired outcome, and
-  the turn limit before starting.
+- The bare `uv run lab simulate` command opens the Textual workbench. Its setup
+  page lets you choose a scenario and adjust who is making the request, what
+  they say, the desired outcome, and the turn limit before starting.
+- `run <scenario-id>` runs one simulation with the Rich event stream in the
+  terminal.
 - `--yes` skips every prompt (non-interactive). Missing required values fail
   instead of prompting. Overrides: `--profile`, `--max-turns`, `--persona`,
   `--script`, `--goal`.
 - `--no-live` prints plain one-line events even on a terminal.
-- Interactive runs ask whether to use Rich or Textual after setup and preflight.
-  Use `--view rich` or `--view textual` to choose without a prompt. `--tui` is
-  kept as a compatibility alias for `--view textual`.
-- The Textual view is a full-screen command center. Setup is a separate page
-  for choosing a scenario, editing the run recipe, and reviewing preflight.
-  After launch, `o` opens the run overview, `t` opens the event stream, and `e`
-  opens the evidence handoff. The run and persistent log continue while the
-  view is paused. The pages support event filtering, safe event details, live
-  counts, elapsed time, responsive narrow-terminal layouts, and a verified
-  result summary.
-- `--json` prints only the stable final report (or the structured
-  validation/preflight result).
-- `Ctrl-C` after the run has started rolls back the disposable environment,
-  writes a partial report (`end_reason: cancelled`), and exits with status
-  130.
+- `--json` prints JSON instead of the terminal event view.
+- The Textual workbench uses a restrained black and charcoal interface, open
+  tables, thin rules, and plain copy. It has separate setup and live pages.
+- For `lab simulate run ...`, `Ctrl-C` after the run has started rolls back the
+  disposable environment, writes a partial report (`end_reason: cancelled`),
+  and exits with status 130.
 
 ## Setup review and preflight
 
@@ -80,13 +75,12 @@ Non-terminal output (pipes, files) prints one plain line per event, still
 starting with `run_id=`, `jsonl_path=`, and `report_path=` so existing tail
 workflows keep working.
 
-The Textual view is optional. Interactive runs let the operator choose Rich or
-Textual; non-interactive live runs keep Rich as the compatibility default, and
-plain/JSON output remains the stable automation interface. Textual consumes the
-same plugin and event contracts; it does not own execution or persistence. It
-stays in the repository's Python runtime and has headless interaction tests.
-OpenTUI set a useful 2026 quality reference, but using it here would add a
-second TypeScript/Bun/native runtime and duplicate the CLI application boundary.
+The bare command starts Textual, while scenario run commands use Rich, plain
+lines, or JSON. Textual consumes the same plugin and event contracts; it does
+not own execution or persistence. It stays in the repository's Python runtime
+and has headless interaction tests. OpenTUI set a useful 2026 quality reference,
+but using it here would add a second TypeScript/Bun/native runtime and duplicate
+the CLI application boundary.
 
 ## What gets persisted
 

@@ -375,6 +375,11 @@ The generic simulator runs YAML reference workflows through API, CLI, Rich, or
 full-screen Textual views. The renderer consumes events and does not own
 execution.
 
+The local Textual workbench starts from bare `lab simulate`. It uses a guided
+one-question setup, runs the same environment checks as direct CLI runs, and
+shows a monochrome keyboard-first event and evidence workspace. Direct
+`lab simulate run <scenario-id>` commands keep the Rich event stream.
+
 **Primary evidence:** `src/app/domain/regression/`, `src/app/domain/suite/`,
 `src/app/domain/user_simulator/`, `src/app/cli/simulate.py`,
 `src/app/cli/textual_simulate.py`, `simulations/`, suite and simulator tests,

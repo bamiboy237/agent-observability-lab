@@ -76,15 +76,17 @@ curl -X POST http://127.0.0.1:8000/workflows \
 
 ## User simulator CLI
 
-Run a persona against the support sandbox or a reference workflow with a live
-terminal view. Interactive runs let you choose Rich or the full-screen Textual
-command center. The Textual flow separates setup, overview, timeline, and
-evidence pages:
+Run the bare command to open the full-screen Textual workbench. It uses a
+restrained black and charcoal interface with open tables, thin rules, plain
+copy, and separate setup and live pages. Run a scenario by id to stream Rich
+events in the terminal; use `--no-live` for plain lines or `--json` for JSON:
 
 ```bash
+uv run lab simulate
 uv run lab simulate list
 uv run lab simulate run reference-disputes
-uv run lab simulate run reference-disputes --view textual
+uv run lab simulate run reference-disputes --no-live
+uv run lab simulate run reference-disputes --json
 ```
 
 See `docs/user-simulator.md` for the timeline UI, the persistent-event
