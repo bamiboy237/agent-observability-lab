@@ -163,6 +163,14 @@ def _format_detail_cell(display: DisplayEvent) -> Text:
     return preview
 
 
+def _format_turn_cell(event: SimulationEvent) -> Text:
+    """Render the shared turn number for related model and transcript events."""
+    turn = dict(event.persistent.fields).get("turn")
+    if isinstance(turn, int):
+        return Text(f"{turn:02d}", style="bold #e5c558")
+    return Text("--", style="#555555")
+
+
 class EventReceived(Message):
     """One in-memory display event delivered to the Textual message loop."""
 
@@ -909,6 +917,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
 
     def _mount_live_timeline(self) -> None:
         table = self.query_one("#timeline", DataTable)
+        table.add_column("turn", width=4)
         table.add_column("event", width=8)
         table.add_column("detail", width=30)
         table.add_column("time", width=8)
@@ -1243,6 +1252,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
         self._visible.append(event)
         table = self.query_one("#timeline", DataTable)
         table.add_row(
+            _format_turn_cell(event),
             _format_kind_cell(display.kind),
             _format_detail_cell(display),
             display.timestamp.strftime("%H:%M:%S"),

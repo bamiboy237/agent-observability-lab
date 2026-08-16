@@ -97,6 +97,7 @@ async def test_tui_runs_filters_inspects_and_returns_result() -> None:
 
         table = app.query_one("#timeline", DataTable)
         assert table.row_count == 5
+        assert str(table.get_row_at(1)[0]) == "01"
         assert str(app.query_one("#status", Label).render()) == "verified"
         assert str(app.query_one("#run-id", Static).render()) == "run-textual"
         assert app.query_one("#exit").display is True
@@ -155,7 +156,7 @@ async def test_tui_pause_buffers_the_view_and_narrow_layout_hides_rails() -> Non
         original_rows = table.row_count
         assert app.query_one("#context-rail").display is False
         assert app.query_one("#details-rail").display is False
-        assert "engine" in str(table.get_row_at(0)[1])
+        assert "engine" in str(table.get_row_at(0)[2])
 
         await pilot.press("space")
         emitter = EventEmitter("late", "textual-flow", [app])

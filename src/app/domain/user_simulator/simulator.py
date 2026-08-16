@@ -124,6 +124,14 @@ def live_model() -> object:
     )
 
 
+def _safe_failure_reason(error: Exception) -> str:
+    """Return an allowlisted failure class without retaining provider response bodies."""
+    status_code = getattr(error, "status_code", None)
+    if isinstance(status_code, int) and 100 <= status_code <= 599:
+        return f"http_{status_code}"
+    return type(error).__name__
+
+
 def _session_factory_for(database_url: str) -> Callable[[], AsyncSession]:
     """Build an isolated async session factory from one injected URL.
 
@@ -282,12 +290,13 @@ class PersonaConversation:
         )
 
     def _emit_model(
-        self, source: EventSource, *, tokens: int, latency_ms: float
+        self, source: EventSource, *, turn: int, tokens: int, latency_ms: float
     ) -> None:
         self.events.emit(
             EventKind.MODEL,
             source,
             text=f"model response tokens={tokens} latency={latency_ms:.0f}ms",
+            turn=turn,
             model_provider=MODEL_PROVIDER,
             model_name=MODEL_NAME,
             tokens=tokens,
@@ -369,6 +378,7 @@ class PersonaConversation:
                 self.usage.add(getattr(result, "usage", None))
                 self._emit_model(
                     EventSource.PERSONA,
+                    turn=turn,
                     tokens=int(getattr(result.usage, "total_tokens", 0) or 0),
                     latency_ms=(time.perf_counter() - model_started) * 1000,
                 )
@@ -390,6 +400,7 @@ class PersonaConversation:
                     self.usage.add(getattr(confirmation_result, "usage", None))
                     self._emit_model(
                         EventSource.PERSONA,
+                        turn=turn,
                         tokens=int(
                             getattr(confirmation_result.usage, "total_tokens", 0) or 0
                         ),
@@ -469,11 +480,12 @@ class PersonaConversation:
             raise
         except Exception as error:
             turns = (len(transcript) + 1) // 2
+            failure_reason = _safe_failure_reason(error)
             partial = self._build_report(
                 end_reason="error",
                 verified_goal=False,
                 evidence=evidence,
-                errors=(f"{type(error).__name__}: {error}",),
+                errors=(f"run failed: {failure_reason}",),
                 turns=turns,
                 started=started,
             )
@@ -481,8 +493,8 @@ class PersonaConversation:
             self.events.emit(
                 EventKind.ERROR,
                 EventSource.ENGINE,
-                text=f"run failed: {type(error).__name__}",
-                error=type(error).__name__,
+                text=f"run failed: {failure_reason}",
+                error=failure_reason,
             )
             raise
         self._write_report(report)

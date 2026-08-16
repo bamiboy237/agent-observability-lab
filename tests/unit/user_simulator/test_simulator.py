@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 
 from app.domain.user_simulator import simulator
 from app.domain.user_simulator.events import EventKind, EventSource, SimulationEvent
@@ -62,6 +63,16 @@ def test_exact_luna_settings_are_required(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.delenv("USER_SIMULATOR_OFFLINE", raising=False)
     simulator.require_live_test_environment()
     assert simulator.MODEL_NAME == "gpt-5.6-luna"
+
+
+def test_model_http_failure_reason_keeps_only_the_status_code() -> None:
+    error = ModelHTTPError(429, "gpt-5.6-luna", {"error": "private provider response"})
+
+    assert simulator._safe_failure_reason(error) == "http_429"
+
+
+def test_non_http_failure_reason_is_the_exception_type() -> None:
+    assert simulator._safe_failure_reason(RuntimeError("private detail")) == "RuntimeError"
 
 
 @pytest.mark.parametrize(
@@ -143,6 +154,41 @@ async def test_persona_usage_is_aggregated_and_unknown_cost_stays_null(
     ).run(state_success=lambda: (False, ()))
     assert result.report.total_tokens == 17
     assert result.report.cost_usd is None
+
+
+@pytest.mark.asyncio
+async def test_model_user_and_agent_events_share_the_same_turn(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    persona = SUPPORT_PERSONAS[0]
+    _install_persona_model(
+        monkeypatch,
+        [UserTurn(message="Please check it")],
+        usages=[SimpleNamespace(total_tokens=17)],
+    )
+    capture = _CaptureSink()
+    conversation = simulator.PersonaConversation(
+        persona,
+        lambda message, confirmed: _answer(message),
+        max_turns=1,
+        run_id="turn-link",
+        root=tmp_path,
+    )
+    conversation.events.add(capture)
+
+    await conversation.run(state_success=lambda: (False, ()))
+
+    turn_by_kind = {
+        event.display.kind: dict(event.persistent.fields).get("turn")
+        for event in capture.events
+        if event.display is not None
+        and event.display.kind in {EventKind.MODEL, EventKind.USER, EventKind.AGENT}
+    }
+    assert turn_by_kind == {
+        EventKind.MODEL: 1,
+        EventKind.USER: 1,
+        EventKind.AGENT: 1,
+    }
 
 
 @pytest.mark.asyncio
