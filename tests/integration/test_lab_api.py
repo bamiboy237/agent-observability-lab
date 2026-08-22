@@ -9,7 +9,6 @@ isolated database.
 
 import asyncio
 import json
-import os
 
 import pytest
 from alembic import command
@@ -50,11 +49,9 @@ REVIEW = {
 @pytest.fixture(scope="module", autouse=True)
 def apply_lab_api_migrations() -> None:
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for lab API integration tests")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     command.upgrade(Config("alembic.ini"), "head")
 
 
@@ -86,7 +83,7 @@ async def test_lab_api_saves_suite_runs_and_streams(
 ) -> None:
     from tests.fakes.scripted_model import build_scripted_model, order_status_plan
 
-    settings = Settings()  # type: ignore[call-arg]
+    Settings()  # type: ignore[call-arg]
     bundle = await _bundle()
     from app.domain.simulation.runner import state_from_bundle
 
@@ -102,6 +99,7 @@ async def test_lab_api_saves_suite_runs_and_streams(
     from app.domain.execution.service import ExecutionService
     from app.domain.simulation.provisioner import postgres_provisioner_factory
 
+    settings = Settings()  # type: ignore[call-arg]
     execution = ExecutionService(
         provisioner_factory=postgres_provisioner_factory(
             get_session_factory(),

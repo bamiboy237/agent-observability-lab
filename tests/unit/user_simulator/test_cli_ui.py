@@ -450,14 +450,11 @@ def test_persona_overrides_reach_an_unrelated_test_plugin(
     assert request.goal == "fully resolved"
 
 
-def test_selected_profile_url_reaches_the_run_and_root_url_is_ignored(
+def test_selected_profile_url_reaches_the_run(
     catalog_dir: Path, monkeypatch
 ) -> None:
-    """A conflicting remote root DATABASE_URL must never reach the plugin."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql://root:secret@db.example.invalid:5432/prod")
-    monkeypatch.setenv(
-        "LAB_TEST_PG_URL", "postgresql://lab:lab@127.0.0.1:55433/lab"
-    )
+    """The configured DATABASE_URL reaches the plugin runtime."""
+    monkeypatch.setenv("DATABASE_URL", "postgresql://lab:lab@127.0.0.1:5432/lab")
     plugin = _FakePlugin()
     registry = _registry(plugin)
     monkeypatch.setattr(simulate, "run_preflight", _ok_preflight)
@@ -465,8 +462,7 @@ def test_selected_profile_url_reaches_the_run_and_root_url_is_ignored(
     assert code == 0
     request = plugin.requests[0]
     assert request.runtime is not None
-    assert request.runtime.database_url == "postgresql://lab:lab@127.0.0.1:55433/lab"
-    assert "db.example.invalid" not in (request.runtime.database_url or "")
+    assert request.runtime.database_url == "postgresql://lab:lab@127.0.0.1:5432/lab"
     assert request.runtime.environment == "test"
 
 

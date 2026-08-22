@@ -244,7 +244,11 @@ async def test_interactive_workbench_configuration_and_launch(monkeypatch) -> No
         issues=(),
     )
 
-    app = TextualSimulatorApp(catalog=catalog, registry=registry)
+    async def _ok_probe(profile: object, env: object, cwd: object) -> list[object]:
+        del profile, env, cwd
+        return []
+
+    app = TextualSimulatorApp(catalog=catalog, registry=registry, db_probe=_ok_probe)
     async with app.run_test(size=(72, 35)) as pilot:
         await pilot.pause(0.2)
 

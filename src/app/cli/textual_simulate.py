@@ -11,7 +11,7 @@ from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 from time import monotonic
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from rich.text import Text
 from textual import on
@@ -685,6 +685,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
         profile_label: str = "",
         catalog: SimulationCatalog | None = None,
         registry: FlowRegistry | None = None,
+        db_probe: Any | None = None,
     ) -> None:
         super().__init__()
         self._plugin = plugin
@@ -694,6 +695,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
         self._profile_label = profile_label
         self._catalog = catalog
         self._flow_registry = registry
+        self._db_probe = db_probe
         self._is_config_mode = plugin is None and catalog is not None
         self._scenarios: list[Scenario] = list(catalog.scenarios) if catalog else []
         self._selected_scenario: Scenario | None = self._scenarios[0] if self._scenarios else None
@@ -1063,6 +1065,7 @@ class TextualSimulatorApp(App[FlowRunResult | None]):
             registry=self._flow_registry,
             profile=cast("EnvironmentProfileLike", profile),
             env=env,
+            db_probe=self._db_probe,
         )
         runtime, runtime_issues = resolve_runtime(cast("EnvironmentProfileLike", profile), env)
         all_issues = (*issues, *runtime_issues)

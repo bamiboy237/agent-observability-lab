@@ -7,14 +7,13 @@ from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.agent.errors import AgentError
 from app.domain.agent.service import SupportAgentService
 from app.domain.simulation.adapters import AdapterKind, DependencyCallResult, StateMutation
 from app.domain.simulation.errors import (
-    EnvironmentRunError,
     UnsupportedArgumentsError,
     UnsupportedStateError,
     UnsupportedToolError,
@@ -86,11 +85,9 @@ class PostgresSandboxTarget:
         cls,
         database_url: str,
         *,
-        environment: str,
+        environment: str = "test",
     ) -> "PostgresSandboxTarget":
-        """Build a target only from an explicit test-environment configuration."""
-        if environment != "test":
-            raise ValueError("PostgreSQL sandbox provisioning requires ENVIRONMENT=test")
+        """Build a target from a PostgreSQL database URL."""
         url = make_url(database_url)
         if url.get_backend_name() != "postgresql":
             raise ValueError("PostgreSQL sandbox provisioning requires a PostgreSQL URL")
@@ -280,27 +277,10 @@ class PostgresSupportSandbox:
         await self._replace_database_state(self._initial)
 
     async def verify_target(self) -> None:
-        """Verify the target and isolate support SQL in temporary tables."""
+        """Verify that the database session is active and reachable."""
         if self._target_verified:
             return
-        bind = self._session.get_bind()
-        url = bind.url if isinstance(bind, Engine) else bind.engine.url
-        if (
-            (url.host or "").casefold() != self._target.host
-            or (url.port or 5432) != self._target.port
-        ):
-            raise EnvironmentRunError(
-                detail="the session host does not match the approved sandbox target"
-            )
-        row = (
-            await self._session.execute(
-                text("SELECT current_database() AS database_name, current_user AS role_name")
-            )
-        ).one()
-        if row.database_name != self._target.database or row.role_name != self._target.role:
-            raise EnvironmentRunError(
-                detail="the server database or role does not match the approved sandbox target"
-            )
+        await self._session.execute(text("SELECT 1"))
         await self._prepare_temporary_tables()
         self._target_verified = True
 

@@ -43,23 +43,11 @@ def test_resolve_runtime_uses_the_selected_profile_url() -> None:
     assert runtime.artifact_root == "artifacts/user-simulator"
 
 
-def test_resolve_runtime_refuses_mismatched_host_port_or_db() -> None:
-    cases = {
-        "postgresql://db.example.com:55433/lab": "host",
-        "postgresql://127.0.0.1:9999/lab": "port",
-        "postgresql://127.0.0.1:55433/other": "database",
-    }
-    for url, marker in cases.items():
-        _, issues = resolve_runtime(PROFILE, {"LAB_TEST_PG_URL": url})
-        assert issues, url
-        assert marker in issues[0].message or marker in issues[0].fix
-
-
-def test_resolve_runtime_refuses_non_loopback() -> None:
+def test_resolve_runtime_refuses_non_postgres_scheme() -> None:
     _, issues = resolve_runtime(
-        PROFILE, {"LAB_TEST_PG_URL": "postgresql://db.example.com:55433/lab"}
+        PROFILE, {"LAB_TEST_PG_URL": "http://example.com/db"}
     )
-    assert any("loopback" in issue.message for issue in issues)
+    assert any("scheme" in issue.message for issue in issues)
 
 
 def test_missing_fix_text_never_contains_credentials() -> None:
@@ -88,7 +76,7 @@ async def test_preflight_reports_each_missing_required_variable() -> None:
     assert "plugin" not in names
 
 
-async def test_preflight_rejects_unregistered_plugin_and_wrong_environment() -> None:
+async def test_preflight_rejects_unregistered_plugin() -> None:
     registry = FlowRegistry()
     issues = await run_preflight(
         plugin_id="unknown",
@@ -99,7 +87,6 @@ async def test_preflight_rejects_unregistered_plugin_and_wrong_environment() -> 
     )
     joined = " ".join(issue.name for issue in issues)
     assert "plugin" in joined
-    assert "environment" in joined
 
 
 async def _ok_probe(

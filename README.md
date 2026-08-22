@@ -1,107 +1,146 @@
 # Simulate
 
-Continuously evaluate and improve agentic workflows.
+Simulate creates isolated, resettable sandbox environments to test, investigate, and improve AI agents against realistic business workflows.
 
-Simulate turns opt-in production traces into behavior insights, human-approved
-YAML scenarios, isolated repeated experiments, and neutral evidence. The current
-repository contains the completed Phases 0–7 foundation. Phase 8, the controlled
-experiment engine, is planned but not implemented.
+Simulate does not host or deploy customer agents in production. Instead, Simulate runs customer agents inside disposable sandboxes with sanitized database state and mock services. Teams use Simulate to reproduce production failures, test agent updates, and measure behavioral changes before releasing code to production.
 
-See `BUILD_ROADMAP.md` for the product contract, current phase boundary, cloud
-and BYOVM direction, Textual workflow, and preserved Kumo/Paper UI reference.
+## Current status
 
-## Local setup
+- **Phases 0–7 (Complete):** Core support domain, LangSmith and Braintrust trace ingestion, LangGraph stateful workflow checkpointing, isolated PostgreSQL provisioning, and the terminal user simulator.
+- **Phase 8 MVP (In progress):** Runs Prime Agent (a coding harness by Prime Intellect) inside a detached Modal cloud sandbox. Prime Agent investigates production traces, reproduces issues, streams live events, and writes an immutable evidence summary.
 
-Requirements: Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and a PostgreSQL
-database. This workspace is linked to Neon, so authenticated contributors can
-pull the current development branch configuration:
+For the detailed phase plan and architecture, see [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md) and [`ARCHITECTURE.md`](file:///Users/king/Desktop/simulate/ARCHITECTURE.md).
+
+## Requirements
+
+- Python 3.12 or newer
+- [`uv`](https://docs.astral.sh/uv/)
+- PostgreSQL (local or Neon)
+- Docker (optional, for containerized local development)
+
+## Quickstart
+
+### 1. Configure the environment
+
+To pull your development configuration when you use Neon:
 
 ```bash
 neon env pull --file .env
+```
+
+If you do not use Neon, copy the example environment file and add your credentials:
+
+```bash
+cp .env.example .env
+```
+
+### 2. Install dependencies and apply migrations
+
+Run the following commands to install dependencies and migrate the database:
+
+```bash
 uv sync --frozen
 uv run alembic upgrade head
 ```
 
-### Docker sandbox
-
-Docker Compose starts a local PostgreSQL database and the API. It uses a named
-Docker volume for database data and binds both services to loopback only. The
-database is available on host port `55433`.
+To load sample fixture data for local testing, run:
 
 ```bash
-docker compose up --build
-curl -i http://127.0.0.1:8000/healthz
-curl -i http://127.0.0.1:8000/readyz
+uv run python scripts/seed.py
 ```
 
-Run the test suite in the same sandbox:
+### 3. Start the API server
 
-```bash
-docker compose --profile test run --rm test
-```
-
-The test service uses only explicit disposable-database settings. It does not
-load `.env` or run credentialed live-model checks.
-
-Stop the services with `docker compose down`. Add `-v` only when you want to
-remove the local database volume and all data stored in it.
-
-Start the API:
+Start the local FastAPI application:
 
 ```bash
 uv run uvicorn app.main:create_app --factory
 ```
 
-Then verify liveness and database readiness:
+Verify that the server is healthy:
 
 ```bash
 curl -i http://127.0.0.1:8000/healthz
 curl -i http://127.0.0.1:8000/readyz
 ```
 
-## Controlled support workflows
+---
 
-The workflow API persists LangGraph checkpoints in PostgreSQL. On the first
-workflow request, the API opens the configured direct database connection and
-idempotently creates the checkpointer tables with the official saver. A later
-API worker can inspect or resume the same workflow by its stable workflow ID.
-The normal Alembic migration command still manages application tables; the
-checkpointer's explicit setup manages only its own tables.
+## Docker development
+
+You can run PostgreSQL and the API server together with Docker Compose.
+
+To build and start the containers:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/workflows \
-  -H 'content-type: application/json' \
-  -d '{"actor_id":"<customer-uuid>","request_id":"demo-1","message":"Where is my order <order-uuid>?"}'
+docker compose up --build
 ```
+
+The database binds to `127.0.0.1:55433` and persists data in a named Docker volume.
+
+To run the test suite inside the Docker container:
+
+```bash
+docker compose --profile test run --rm test
+```
+
+To stop all containers and remove the database volume:
+
+```bash
+docker compose down -v
+```
+
+---
 
 ## User simulator CLI
 
-Run the bare command to open the full-screen Textual workbench. It uses a
-restrained black and charcoal interface with open tables, thin rules, plain
-copy, and separate setup and live pages. Run a scenario by id to stream Rich
-events in the terminal; use `--no-live` for plain lines or `--json` for JSON:
+The user simulator runs persona-driven test scenarios against target agents and streams events to your terminal.
+
+To open the full-screen terminal interface:
 
 ```bash
 uv run lab simulate
+```
+
+To list available simulation scenarios:
+
+```bash
 uv run lab simulate list
+```
+
+To run a specific scenario and view the event stream:
+
+```bash
 uv run lab simulate run reference-disputes
+```
+
+To output plain text or JSON instead of the rich UI:
+
+```bash
 uv run lab simulate run reference-disputes --no-live
 uv run lab simulate run reference-disputes --json
 ```
 
-See `docs/user-simulator.md` for the timeline UI, the persistent-event
-privacy contract, and the generic flow-plugin seam.
+For configuration details and privacy policies, see [`docs/user-simulator.md`](file:///Users/king/Desktop/simulate/docs/user-simulator.md).
 
-## Quality gate
+---
 
-Run the same checks used by CI:
+## Quality checks
+
+Run these checks before you push changes or open a pull request:
 
 ```bash
 uv run ruff check .
 uv run mypy src
+uv run pytest tests/unit -q
 uv run pytest
 ```
 
-Database integration tests use the configured `DATABASE_URL`. GitHub Actions
-provides a disposable PostgreSQL service, so CI does not use Neon credentials
-or a shared production database.
+---
+
+## Documentation
+
+- [`ARCHITECTURE.md`](file:///Users/king/Desktop/simulate/ARCHITECTURE.md): System architecture, control plane versus execution plane, and sandbox lifecycle.
+- [`BUILD_ROADMAP.md`](file:///Users/king/Desktop/simulate/BUILD_ROADMAP.md): Product roadmap, milestone acceptance criteria, and schema contracts.
+- [`AGENTS.md`](file:///Users/king/Desktop/simulate/AGENTS.md): Coding style, testing rules, and commands for autonomous agents.
+- [`docs/user-simulator.md`](file:///Users/king/Desktop/simulate/docs/user-simulator.md): Simulator setup, preflight checks, and event contracts.

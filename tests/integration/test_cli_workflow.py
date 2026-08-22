@@ -7,7 +7,6 @@ hosted-model or observability credentials against the isolated database.
 """
 
 import json
-import os
 import pathlib
 import subprocess
 import sys
@@ -70,11 +69,9 @@ def candidate_file(tmp_path: pathlib.Path) -> str:
 @pytest.fixture(scope="module", autouse=True)
 def apply_cli_migrations() -> None:
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for CLI workflow integration tests")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     command.upgrade(Config("alembic.ini"), "head")
 
 

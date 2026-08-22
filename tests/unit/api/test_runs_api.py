@@ -269,7 +269,7 @@ def test_runs_require_a_configured_model() -> None:
 def test_runs_require_an_isolated_environment() -> None:
     case_service, suite_service, saved, suite, case = asyncio.run(_fixtures())
     settings = Settings(
-        database_url="postgresql://user:password@localhost:5432/app",
+        database_url="postgresql://localhost/app",
         _env_file=None,
         environment="local",
         model_provider="openai",

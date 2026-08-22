@@ -55,11 +55,9 @@ async def test_langsmith_trace_imports_end_to_end_without_duplicates() -> None:
     from pydantic import ValidationError
 
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for the end-to-end import check")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
 
     config = LangSmithSourceConfig(
         api_key=SecretStr(os.environ["LANGSMITH_API_KEY"]),

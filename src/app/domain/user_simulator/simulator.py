@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -69,9 +68,7 @@ class _UsageTotals:
         elif self._cost_known:
             self._cost_total += float(cost)
 
-    def add_model_span(
-        self, name: str, attributes: Mapping[str, object], *, ended: bool
-    ) -> None:
+    def add_model_span(self, name: str, attributes: Mapping[str, object], *, ended: bool) -> None:
         """Add final model span usage, once, from sanitized support attributes."""
         if not ended or name not in {"support_agent.routing", "support_agent.answer"}:
             return
@@ -95,18 +92,12 @@ class _UsageTotals:
 
 
 def require_live_test_environment() -> None:
-    """Reject production/offline execution and require exact configured Luna."""
+    """Verify that a model API key is configured."""
     from app.config import get_settings
 
     settings = get_settings()
-    if settings.environment != "test":
-        raise RuntimeError("user simulator requires ENVIRONMENT=test")
-    if os.getenv("USER_SIMULATOR_OFFLINE", "").lower() in {"1", "true", "yes"}:
-        raise RuntimeError("user simulator refuses offline/fake fallback")
-    if not settings.model_configured or settings.model_provider != "openai":
-        raise RuntimeError("user simulator requires configured OpenAI gpt-5.6-luna")
-    if settings.model_name != MODEL_NAME:
-        raise RuntimeError("user simulator requires exact model gpt-5.6-luna")
+    if not settings.model_configured:
+        raise RuntimeError("user simulator requires a configured model API key")
 
 
 def live_model() -> object:
@@ -272,8 +263,10 @@ class PersonaConversation:
         self.usage = usage if usage is not None else _UsageTotals()
         self.agent_source = agent_source
         self.last_report: SimulatorReport | None = None
-        self.events = events if events is not None else build_emitter(
-            self.run_id, persona.persona_id, root, None
+        self.events = (
+            events
+            if events is not None
+            else build_emitter(self.run_id, persona.persona_id, root, None)
         )
 
     def _emit_start(self) -> None:
@@ -401,9 +394,7 @@ class PersonaConversation:
                     self._emit_model(
                         EventSource.PERSONA,
                         turn=turn,
-                        tokens=int(
-                            getattr(confirmation_result.usage, "total_tokens", 0) or 0
-                        ),
+                        tokens=int(getattr(confirmation_result.usage, "total_tokens", 0) or 0),
                         latency_ms=(time.perf_counter() - model_started) * 1000,
                     )
                     user_turn = confirmation_result.output
@@ -536,11 +527,10 @@ async def run_support(
     from app.telemetry.recorder import TraceRecorder, TraceSpan
 
     source = SIMULATION_SCENARIOS[persona.scenario_or_workflow_id]
+
     # The bundle compiler replaces source identifiers with stable synthetic IDs.
     def portable_script(value: str) -> str:
-        return _UUID_PATTERN.sub(
-            lambda match: str(synthetic_id(UUID(match.group(0)))), value
-        )
+        return _UUID_PATTERN.sub(lambda match: str(synthetic_id(UUID(match.group(0)))), value)
 
     simulation_persona = persona.model_copy(update={"script": portable_script(persona.script)})
     bundle = compile_bundle(
@@ -565,9 +555,7 @@ async def run_support(
         isolation_confirmed=True,
     )
     collector = SimulationEventCollector()
-    provisioner = factory(
-        EnvironmentRequest(scenario=scenario, fault_script=None, sink=collector)
-    )
+    provisioner = factory(EnvironmentRequest(scenario=scenario, fault_script=None, sink=collector))
     latest = None
     latest_state = None
     usage_totals = _UsageTotals()
@@ -587,9 +575,7 @@ async def run_support(
             )
             return
         if span.name.startswith("support_agent.tool."):
-            tool = str(
-                span.attributes.get("tool.name") or span.name.rsplit(".", 1)[-1]
-            )
+            tool = str(span.attributes.get("tool.name") or span.name.rsplit(".", 1)[-1])
             label = project_tool(
                 tool_projector,
                 flow_id,
@@ -748,9 +734,7 @@ async def run_support(
                 text=f"cleanup failed: {type(error).__name__}",
                 reason="cleanup_failed",
             )
-            raise RuntimeError(
-                f"cleanup failed: {type(error).__name__}"
-            ) from error
+            raise RuntimeError(f"cleanup failed: {type(error).__name__}") from error
         emitter.emit(
             EventKind.CLEANUP,
             EventSource.SUPPORT,
@@ -922,9 +906,7 @@ async def run_reference(
                 f"{tuple(executed_tools)}. Continue with {next_reviewed_step()}."
             )
         for _ in range(8):
-            business_result = await choices.run(
-                context, usage_limits=UsageLimits(request_limit=2)
-            )
+            business_result = await choices.run(context, usage_limits=UsageLimits(request_limit=2))
             usage_totals.add(getattr(business_result, "usage", None))
             choice = business_result.output
             if choice.end or choice.tool is None:
@@ -964,9 +946,8 @@ async def run_reference(
                     f"{tuple(tool_map)} and continue."
                 )
                 continue
-            requires_confirmation = (
-                workflow.expectation.gate_required
-                and (choice.tool in workflow.expectation.protected_tools or not tool.safe)
+            requires_confirmation = workflow.expectation.gate_required and (
+                choice.tool in workflow.expectation.protected_tools or not tool.safe
             )
             if requires_confirmation and not confirmed:
                 approval_pending = True
@@ -1033,9 +1014,7 @@ async def run_reference(
                 text=f"cleanup failed: {type(error).__name__}",
                 reason="cleanup_failed",
             )
-            raise RuntimeError(
-                f"cleanup failed: {type(error).__name__}"
-            ) from error
+            raise RuntimeError(f"cleanup failed: {type(error).__name__}") from error
         emitter.emit(
             EventKind.CLEANUP,
             EventSource.REFERENCE,

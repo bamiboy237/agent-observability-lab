@@ -75,21 +75,13 @@ def test_non_http_failure_reason_is_the_exception_type() -> None:
     assert simulator._safe_failure_reason(RuntimeError("private detail")) == "RuntimeError"
 
 
-@pytest.mark.parametrize(
-    ("environment", "offline", "message"),
-    [
-        ("production", False, "ENVIRONMENT=test"),
-        ("test", True, "offline"),
-    ],
-)
-def test_production_and_offline_modes_are_rejected(
-    monkeypatch: pytest.MonkeyPatch, environment: str, offline: bool, message: str
+def test_unconfigured_model_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     settings = FakeSettings()
-    settings.environment = environment
+    settings.model_configured = False
     monkeypatch.setattr("app.config.get_settings", lambda: settings)
-    monkeypatch.setenv("USER_SIMULATOR_OFFLINE", "1" if offline else "0")
-    with pytest.raises(RuntimeError, match=message):
+    with pytest.raises(RuntimeError, match="model API key"):
         simulator.require_live_test_environment()
 
 
@@ -109,15 +101,12 @@ async def test_start_event_announces_paths_before_the_hosted_model_call(
 ) -> None:
     events: list[str] = []
     persona = SUPPORT_PERSONAS[0]
-    _install_persona_model(
-        monkeypatch, [UserTurn(message="Please check it")]
-    )
-    monkeypatch.setattr(
-        simulator, "live_model", lambda: events.append("model") or object()
-    )
+    _install_persona_model(monkeypatch, [UserTurn(message="Please check it")])
+    monkeypatch.setattr(simulator, "live_model", lambda: events.append("model") or object())
     capture = _CaptureSink()
     conversation = simulator.PersonaConversation(
-        persona, lambda message, confirmed: _answer(message),
+        persona,
+        lambda message, confirmed: _answer(message),
         max_turns=1,
         run_id="early",
         root=tmp_path,
@@ -143,11 +132,10 @@ async def test_persona_usage_is_aggregated_and_unknown_cost_stays_null(
 ) -> None:
     persona = SUPPORT_PERSONAS[0]
     usage = SimpleNamespace(total_tokens=17, cost=None)
-    _install_persona_model(
-        monkeypatch, [UserTurn(message="Please check it")], usages=[usage]
-    )
+    _install_persona_model(monkeypatch, [UserTurn(message="Please check it")], usages=[usage])
     result = await simulator.PersonaConversation(
-        persona, lambda message, confirmed: _answer(message),
+        persona,
+        lambda message, confirmed: _answer(message),
         max_turns=1,
         run_id="usage",
         root=tmp_path,
@@ -196,9 +184,7 @@ async def test_only_observed_state_can_verify_success(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     persona = SUPPORT_PERSONAS[0]
-    _install_persona_model(
-        monkeypatch, [UserTurn(message="Please check it", goal_reached=True)]
-    )
+    _install_persona_model(monkeypatch, [UserTurn(message="Please check it", goal_reached=True)])
     calls: list[bool] = []
 
     async def product(message: str, trusted_confirmation: bool) -> str:
@@ -263,7 +249,8 @@ async def test_max_turns_stops_unverified_claims(
         ],
     )
     result = await simulator.PersonaConversation(
-        persona, lambda message, confirmed: _answer(message),
+        persona,
+        lambda message, confirmed: _answer(message),
         max_turns=2,
         run_id="max-turns",
         root=tmp_path,
@@ -316,9 +303,7 @@ def test_persistent_log_never_contains_chat_text(tmp_path: Path) -> None:
         JsonlPersistentSink,
     )
 
-    emitter = EventEmitter(
-        "safe", "case", [JsonlPersistentSink("safe", "case", tmp_path)]
-    )
+    emitter = EventEmitter("safe", "case", [JsonlPersistentSink("safe", "case", tmp_path)])
     emitter.emit(
         EventKind.USER,
         EventSource.PERSONA,
@@ -439,9 +424,7 @@ async def test_reference_retry_approval_and_transition_contract(
                     self.user_sent = True
                     return SimpleNamespace(output=UserTurn(message="Please do it"), usage=usage)
                 return SimpleNamespace(
-                    output=UserTurn(
-                        message="Yes", confirmation_action="confirm_refund"
-                    ),
+                    output=UserTurn(message="Yes", confirmation_action="confirm_refund"),
                     usage=usage,
                 )
             business_count = getattr(self, "business_count", 0)
@@ -450,21 +433,15 @@ async def test_reference_retry_approval_and_transition_contract(
 
             if business_count < 1:
                 return SimpleNamespace(
-                    output=BusinessChoice(
-                        tool="protected_write", arguments={}, message="write"
-                    ),
+                    output=BusinessChoice(tool="protected_write", arguments={}, message="write"),
                     usage=usage,
                 )
-            return SimpleNamespace(
-                output=BusinessChoice(message="done", end=True), usage=usage
-            )
+            return SimpleNamespace(output=BusinessChoice(message="done", end=True), usage=usage)
 
     monkeypatch.setattr(simulator, "Agent", ReferenceAgent)
     monkeypatch.setattr(simulator, "live_model", lambda: object())
     monkeypatch.setattr(simulator, "require_live_test_environment", lambda: None)
-    monkeypatch.setattr(
-        "app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,)
-    )
+    monkeypatch.setattr("app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,))
     persona = REFERENCE_PERSONAS[0].model_copy(
         update={
             "scenario_or_workflow_id": "test-workflow",
@@ -555,9 +532,7 @@ async def test_reference_events_are_emitted_immediately_in_order(
                     self.user_sent = True
                     return SimpleNamespace(output=UserTurn(message="Please do it"), usage=usage)
                 return SimpleNamespace(
-                    output=UserTurn(
-                        message="Yes", confirmation_action="confirm_refund"
-                    ),
+                    output=UserTurn(message="Yes", confirmation_action="confirm_refund"),
                     usage=usage,
                 )
             business_count = getattr(self, "business_count", 0)
@@ -566,21 +541,15 @@ async def test_reference_events_are_emitted_immediately_in_order(
 
             if business_count < 1:
                 return SimpleNamespace(
-                    output=BusinessChoice(
-                        tool="protected_write", arguments={}, message="write"
-                    ),
+                    output=BusinessChoice(tool="protected_write", arguments={}, message="write"),
                     usage=usage,
                 )
-            return SimpleNamespace(
-                output=BusinessChoice(message="done", end=True), usage=usage
-            )
+            return SimpleNamespace(output=BusinessChoice(message="done", end=True), usage=usage)
 
     monkeypatch.setattr(simulator, "Agent", EventReferenceAgent)
     monkeypatch.setattr(simulator, "live_model", lambda: object())
     monkeypatch.setattr(simulator, "require_live_test_environment", lambda: None)
-    monkeypatch.setattr(
-        "app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,)
-    )
+    monkeypatch.setattr("app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,))
     persona = REFERENCE_PERSONAS[0].model_copy(
         update={
             "scenario_or_workflow_id": "event-workflow",
@@ -588,9 +557,7 @@ async def test_reference_events_are_emitted_immediately_in_order(
         }
     )
     capture = _CaptureSink()
-    result = await simulator.run_reference(
-        persona, max_turns=3, root=tmp_path, event_sink=capture
-    )
+    result = await simulator.run_reference(persona, max_turns=3, root=tmp_path, event_sink=capture)
     kinds = [event.display.kind for event in capture.events if event.display is not None]
     # Tool selection happens before its result; approval precedes the protected
     # tool; retry is emitted for the transient failure; state and the final
@@ -610,9 +577,7 @@ async def test_cancellation_writes_partial_report_and_error_event(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     persona = SUPPORT_PERSONAS[0]
-    _install_persona_model(
-        monkeypatch, [UserTurn(message="Please check it")]
-    )
+    _install_persona_model(monkeypatch, [UserTurn(message="Please check it")])
     capture = _CaptureSink()
 
     async def blocking_turn(message: str, confirmed: bool) -> str:
@@ -649,9 +614,7 @@ async def test_cancellation_writes_partial_report_and_error_event(
 # ---------------------------------------------------------------------------
 
 
-def _minimal_result(
-    persona: object, *, kind: str, run_id: str = "r1"
-) -> object:
+def _minimal_result(persona: object, *, kind: str, run_id: str = "r1") -> object:
     from types import SimpleNamespace as _S
 
     return _S(
@@ -786,9 +749,7 @@ def _install_renderer_fixture(monkeypatch: pytest.MonkeyPatch, workflow: object)
     monkeypatch.setattr(simulator, "Agent", _OneTurnAgent)
     monkeypatch.setattr(simulator, "live_model", lambda: object())
     monkeypatch.setattr(simulator, "require_live_test_environment", lambda: None)
-    monkeypatch.setattr(
-        "app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,)
-    )
+    monkeypatch.setattr("app.domain.reference.workflows.six_reference.ALL_WORKFLOWS", (workflow,))
 
 
 @pytest.mark.asyncio
@@ -805,9 +766,7 @@ async def test_renderer_failure_never_aborts_the_business_run(
         }
     )
     failing = _FailingRendererSink()
-    result = await simulator.run_reference(
-        persona, max_turns=2, root=tmp_path, event_sink=failing
-    )
+    result = await simulator.run_reference(persona, max_turns=2, root=tmp_path, event_sink=failing)
     # The run still completed and the persistent JSONL still reached DONE.
     assert result.report.end_reason == "state_verified_success"
     contents = (tmp_path / f"{result.report.run_id}.jsonl").read_text()
@@ -821,9 +780,7 @@ async def test_tool_result_secret_never_reaches_display_or_disk(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     repository = _ReferenceRepository()
-    workflow = _renderer_workflow(
-        repository, "SUCCESS secret-token=supersecret-abc123 and more"
-    )
+    workflow = _renderer_workflow(repository, "SUCCESS secret-token=supersecret-abc123 and more")
     _install_renderer_fixture(monkeypatch, workflow)
     persona = REFERENCE_PERSONAS[0].model_copy(
         update={
@@ -832,9 +789,7 @@ async def test_tool_result_secret_never_reaches_display_or_disk(
         }
     )
     capture = _CaptureSink()
-    result = await simulator.run_reference(
-        persona, max_turns=2, root=tmp_path, event_sink=capture
-    )
+    result = await simulator.run_reference(persona, max_turns=2, root=tmp_path, event_sink=capture)
     display_text = " ".join(
         event.display.text for event in capture.events if event.display is not None
     )

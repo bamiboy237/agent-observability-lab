@@ -7,7 +7,6 @@ mocks only the hosted-model boundary. After the run the database holds
 exactly its previous rows.
 """
 
-import os
 
 import pytest
 from alembic import command
@@ -61,11 +60,9 @@ def _postgres_factory():
 @pytest.fixture(scope="module", autouse=True)
 def apply_migrations() -> None:
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for runner integration tests")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     command.upgrade(Config("alembic.ini"), "head")
 
 

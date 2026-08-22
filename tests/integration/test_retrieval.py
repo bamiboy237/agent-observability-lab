@@ -1,6 +1,5 @@
 """PostgreSQL proof for the Phase 3 retrieval corpus and retrievers."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -27,11 +26,9 @@ from app.domain.support.seed import POLICY_DOCUMENTS
 @pytest.fixture(scope="module", autouse=True)
 def apply_retrieval_migrations() -> None:
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for retrieval integration tests")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     command.upgrade(Config("alembic.ini"), "head")
 
 

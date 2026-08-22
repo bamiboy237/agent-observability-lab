@@ -169,19 +169,12 @@ def test_shipped_environment_profile_is_lab_test_pg() -> None:
     (profile,) = load_environment_profiles()
     assert profile.profile_id == "lab-test-pg"
     assert profile.environment == "test"
-    assert profile.loopback_only is True
-    assert profile.db_host == "127.0.0.1"
-    assert profile.db_port == 55433
-    assert profile.db_name == "lab"
-    assert profile.db_url_env == "LAB_TEST_PG_URL"
+    assert profile.db_url_env == "DATABASE_URL"
     assert profile.isolation_policy == "transaction-rollback"
     assert profile.artifact_root == "artifacts/user-simulator"
     names = profile.required_variables
-    # Execution uses only the URL; no user/password variables are required.
-    assert "LAB_TEST_PG_URL" in names
-    assert "LAB_TEST_PG_USER" not in names
-    assert "LAB_TEST_PG_PASSWORD" not in names
-    assert {"MODEL_PROVIDER", "MODEL_NAME", "MODEL_API_KEY"} <= set(names)
+    assert "DATABASE_URL" in names
+    assert "MODEL_API_KEY" in names
     assert all(name == name.upper() for name in names)
 
 
@@ -346,7 +339,7 @@ def test_load_environment_profiles_raises_safely_on_bad_file(tmp_path: Path) -> 
     assert "environments.yaml" in str(exc.value)
 
 
-def test_load_environment_profiles_requires_test_environment(tmp_path: Path) -> None:
+def test_load_environment_profiles_accepts_custom_environment(tmp_path: Path) -> None:
     path = tmp_path / "environments.yaml"
     path.write_text(
         yaml.safe_dump(
@@ -355,9 +348,8 @@ def test_load_environment_profiles_requires_test_environment(tmp_path: Path) -> 
         ),
         encoding="utf-8",
     )
-    with pytest.raises(CatalogError) as exc:
-        load_environment_profiles(path)
-    assert "environment" in str(exc.value)
+    (profile,) = load_environment_profiles(path)
+    assert profile.environment == "local"
 
 
 def test_environment_profile_extra_fields_forbidden(tmp_path: Path) -> None:

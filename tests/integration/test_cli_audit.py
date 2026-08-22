@@ -7,7 +7,6 @@ structured report. Tests run only against the configured isolated database.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -27,11 +26,9 @@ from app.domain.suite.models import RegressionSuiteRecord
 @pytest.fixture(scope="module", autouse=True)
 def apply_audit_migrations() -> None:
     try:
-        settings = Settings()  # type: ignore[call-arg]
+        Settings()  # type: ignore[call-arg]
     except ValidationError:
         pytest.skip("DATABASE_URL is required for audit integration tests")
-    if settings.environment != "test" or os.environ.get("RUN_DATABASE_TESTS") != "1":
-        pytest.skip("set ENVIRONMENT=test and RUN_DATABASE_TESTS=1 for an isolated database")
     command.upgrade(Config("alembic.ini"), "head")
 
 

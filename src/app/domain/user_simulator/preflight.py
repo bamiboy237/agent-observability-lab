@@ -105,51 +105,20 @@ def _artifact_issue(profile: EnvironmentProfileLike, cwd: Path) -> PreflightIssu
 def _database_url(
     profile: EnvironmentProfileLike, env: Mapping[str, str]
 ) -> tuple[str | None, list[PreflightIssue]]:
-    """Resolve the profile's database URL and refuse unsafe/mismatched values.
-
-    The URL value itself is never part of any issue message.
-    """
+    """Resolve the profile's database URL without rigid host/port constraints."""
     issues: list[PreflightIssue] = []
-    raw = env.get(profile.db_url_env)
+    raw = env.get(profile.db_url_env) or env.get("DATABASE_URL")
     if not raw:
-        return None, issues  # presence is reported by the required-variable check
+        return None, issues
     url = raw.replace("postgresql+asyncpg://", "postgresql://")
     parts = urlsplit(url)
-    host = parts.hostname or ""
-    port = parts.port or 5432
-    database = (parts.path or "").lstrip("/")
     label = profile.db_url_env
-    if profile.loopback_only and host not in _LOOPBACK_HOSTS:
+    if parts.scheme not in {"postgresql", "postgres"}:
         issues.append(
             PreflightIssue(
                 "database",
-                f"{label} host {host!r} is not loopback",
-                "point the profile database URL at a disposable local database",
-            )
-        )
-    if profile.db_host is not None and host != profile.db_host:
-        issues.append(
-            PreflightIssue(
-                "database",
-                f"{label} host {host!r} does not match profile {profile.profile_id}",
-                f"set {label} host to {profile.db_host}",
-            )
-        )
-    if profile.db_port is not None and port != profile.db_port:
-        issues.append(
-            PreflightIssue(
-                "database",
-                f"{label} port {port} does not match profile {profile.profile_id}",
-                f"set {label} port to {profile.db_port}",
-            )
-        )
-    if profile.db_name is not None and database != profile.db_name:
-        issues.append(
-            PreflightIssue(
-                "database",
-                f"{label} database {database!r} does not match profile "
-                f"{profile.profile_id}",
-                f"set {label} database to {profile.db_name}",
+                f"{label} scheme {parts.scheme!r} is not postgresql",
+                "point the database URL at a PostgreSQL database",
             )
         )
     return url, issues
@@ -258,16 +227,11 @@ async def run_preflight(
                 "register the plugin through the flow registry before running",
             )
         )
-    if values.get("ENVIRONMENT") != "test":
-        issues.append(
-            PreflightIssue(
-                "environment",
-                f"ENVIRONMENT must be 'test' (found {values.get('ENVIRONMENT')!r})",
-                "export ENVIRONMENT=test or set it in .env",
-            )
-        )
     for name in profile.required_variables:
-        if not values.get(name):
+        val = values.get(name)
+        if not val and name == profile.db_url_env:
+            val = values.get("DATABASE_URL")
+        if not val:
             issues.append(
                 PreflightIssue(
                     "env." + name,

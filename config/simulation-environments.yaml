@@ -6,17 +6,12 @@
 schema_version: '1.0'
 environments:
 - profile_id: lab-test-pg
-  label: Local disposable lab-test Postgres (loopback only)
+  label: PostgreSQL database (transaction rollback)
   environment: test
-  loopback_only: true
-  db_url_env: LAB_TEST_PG_URL
-  db_host: 127.0.0.1
-  db_port: 55433
-  db_name: lab
+  loopback_only: false
+  db_url_env: DATABASE_URL
   isolation_policy: transaction-rollback
   artifact_root: artifacts/user-simulator
   required_variables:
-  - LAB_TEST_PG_URL
-  - MODEL_PROVIDER
-  - MODEL_NAME
+  - DATABASE_URL
   - MODEL_API_KEY

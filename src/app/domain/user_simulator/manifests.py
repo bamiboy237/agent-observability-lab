@@ -96,9 +96,9 @@ class EnvironmentProfile(BaseModel):
 
     profile_id: str = Field(min_length=1, pattern=_ID_PATTERN)
     label: str = Field(min_length=1, max_length=200)
-    environment: Literal["test"]
-    loopback_only: bool = True
-    db_url_env: EnvVarName = Field(default="LAB_TEST_PG_URL")
+    environment: str = "test"
+    loopback_only: bool = False
+    db_url_env: EnvVarName = Field(default="DATABASE_URL")
     db_host: str | None = Field(default=None, max_length=200)
     db_port: int | None = Field(default=None, ge=1, le=65535)
     db_name: str | None = Field(default=None, max_length=200)
